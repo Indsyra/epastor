@@ -49,11 +49,16 @@ ne pas avoir à les recenser manuellement.*
 
 - **Technos** : `yt-dlp` (déjà utilisé), Python, SQLAlchemy
 - **Output** : lignes insérées dans la table `videos` (au lieu du JSONL
-  actuel), une ligne par vidéo découverte
+  actuel), une ligne par vidéo découverte, `last_scanned_at` mis à jour
+  sur la `channel` traitée
 - **Process** : lire les `channels` d'un pasteur depuis la base (plus
   depuis `config.py`) → appeler `yt-dlp` en mode `extract_flat` par
   chaîne → mapper chaque résultat vers le modèle `Video` → insérer en
   base avec `channel_id`/`pastor_id`
+- **Lien Data Engineering** : cette découverte doit être **incrémentale**,
+  pas un re-scan complet à chaque fois (voir US-22, Epic G) — comparer
+  les `video_id` déjà connus avant insertion, et ne traiter que les
+  nouveaux
 
 ### US-04 (P0) — Filtrer les vidéos où le pasteur est l'intervenant
 *En tant qu'opérateur avec une chaîne multi-orateurs (ex: chaîne
@@ -81,6 +86,9 @@ pertinent avant de lancer la transcription (coûteuse).*
   un JSON `{total, retained, excluded}`
 - **Process** : requête `COUNT(*) GROUP BY speaker_match` sur `videos`
   filtrée par `pastor_id` → exposer en JSON → afficher côté opérateur
+- **Lien Data Engineering** : ces stats sont un premier niveau de
+  monitoring — voir US-24 (Epic G) pour une observabilité plus complète
+  du pipeline (taux d'échec, latence, alerting)
 
 ### US-06 (P0) — Récupérer les transcripts avec timestamps
 *En tant que système, je veux récupérer le transcript de chaque vidéo
@@ -95,6 +103,10 @@ précisément "à 12:34" dans une réponse.*
   `transcript_status=pending` → appeler l'API transcript (langue `fr`
   puis fallback `en`) → si succès, stocker les segments ; si échec,
   passer `transcript_status=unavailable` ou `error`
+- **Lien Data Engineering** : valider la qualité du transcript avant de
+  le marquer `fetched` (transcript vide, trop court, ou anormalement
+  répétitif) plutôt que de laisser passer un contenu inexploitable
+  silencieusement — voir US-23 (Epic G, qualité des données)
 
 ### US-07 (P1) — Signaler les vidéos sans transcript disponible
 *En tant qu'opérateur, je veux être informé si une vidéo n'a pas de
@@ -126,6 +138,10 @@ effectuer une recherche sémantique par question.*
   cohérents (~30-60s de contenu parlé) → générer l'embedding de chaque
   chunk → insérer les métadonnées en base et le vecteur dans FAISS,
   reliés par `id`
+- **Lien Data Engineering** : valider chaque chunk avant insertion
+  (texte non vide, `start_seconds < end_seconds`, longueur minimale) —
+  voir US-23 (Epic G) ; ne pas ré-embedder des chunks déjà générés lors
+  d'un re-run (idempotence, voir US-22)
 
 ### US-09 (P0) — Répondre à une question à partir du contenu vidéo
 *En tant que visiteur, je veux poser une question en langage naturel et
@@ -156,6 +172,11 @@ vérifier l'information à la source.*
   (US-09), récupérer leurs `video_id` + `start_seconds` associés →
   construire l'URL avec paramètre de timestamp → les joindre à la
   réponse finale
+- **Note de conception** : privilégier des citations généreuses (dans les
+  limites déjà fixées pour éviter la reproduction intégrale) plutôt qu'une
+  paraphrase systématique — ça restitue une partie du "ton" du pasteur
+  sans les risques d'un profil de style généré (voir SPECS.md §6, décision
+  actée : pas d'imitation de style par LLM)
 
 ### US-11 (P1) — Enrichir avec le catalogue livres
 *En tant que visiteur, je veux que si un livre du pasteur est mentionné
@@ -194,14 +215,15 @@ instance sans toucher au code.*
 depuis l'interface (bouton), afin de ne pas dépendre d'un script en
 ligne de commande.*
 
-- **Technos** : FastAPI (endpoint déclencheur), une file de tâches en
-  arrière-plan (Celery + Redis, ou plus simple : `BackgroundTasks` de
-  FastAPI pour la v1 vu le faible volume)
-- **Output** : endpoint `POST /pastors/{id}/ingest` qui lance US-03 →
-  US-06 → US-08 en séquence, en tâche de fond
-- **Process** : encapsuler les 3 scripts existants en fonctions
-  appelables → les chaîner dans une tâche de fond déclenchée par
-  l'endpoint → mettre à jour un statut consultable (US-05 étendu)
+- **Technos** : FastAPI (endpoint déclencheur), orchestrateur de pipeline
+  pour l'exécution réelle (voir US-21, Epic G) — `BackgroundTasks` de
+  FastAPI reste une option de repli minimaliste si l'orchestrateur n'est
+  pas encore en place
+- **Output** : endpoint `POST /pastors/{id}/ingest` qui déclenche le flow
+  d'ingestion (US-03 → US-06 → US-08) via l'orchestrateur
+- **Process** : encapsuler les 3 scripts existants en tâches de
+  l'orchestrateur (US-21) → l'endpoint déclenche une exécution du flow →
+  mettre à jour un statut consultable (US-05/US-24 étendus)
 
 ### US-14 (P1) — Gérer son catalogue de livres
 *En tant qu'opérateur, je veux gérer mon catalogue de livres
@@ -308,6 +330,91 @@ pasteur.*
 
 ---
 
+## Epic G — Data Engineering & qualité du pipeline (transverse)
+
+Cet epic ne contient pas de nouvelle fonctionnalité visible côté
+utilisateur — il porte les mécanismes d'orchestration, de fiabilité et
+d'observabilité **référencés depuis** les US d'ingestion (Epic B) et
+d'indexation (Epic C) ci-dessus. Sans lui, le pipeline fonctionne pour
+un premier test, mais ne passerait pas à l'échelle proprement (re-scans
+coûteux, pas de reprise sur échec, pas de visibilité sur ce qui a
+vraiment tourné).
+
+### US-21 (P1) — Orchestrer le pipeline d'ingestion
+*En tant que développeuse, je veux que le pipeline (découverte →
+transcription → chunking/embeddings) soit orchestré par un outil dédié
+plutôt qu'enchaîné manuellement, afin d'avoir une reprise automatique en
+cas d'échec partiel et une exécution planifiée (nouveau contenu détecté
+périodiquement sans action manuelle).*
+
+- **Technos** : Prefect (plus léger et plus rapide à prendre en main
+  qu'Airflow pour un projet solo ; Airflow reste une option si on veut
+  se rapprocher d'un standard plus répandu en entreprise)
+- **Output** : un flow Prefect définissant les 3 étapes comme des tâches
+  liées (`discover → transcribe → chunk_and_embed`), visible et
+  relançable depuis l'UI Prefect
+- **Process** : convertir `discover_videos.py`, `fetch_transcripts.py`,
+  `chunk_and_embed.py` en tâches Prefect (`@task`) → les assembler dans
+  un flow (`@flow`) avec dépendances explicites entre elles → configurer
+  une reprise automatique en cas d'échec sur une tâche → programmer une
+  exécution planifiée (ex: quotidienne) par pasteur actif
+
+### US-22 (P1) — Ingestion incrémentale et idempotence
+*En tant que système, je veux ne retraiter que les vidéos réellement
+nouvelles à chaque exécution du pipeline, afin d'éviter de re-scanner,
+re-transcrire et ré-embedder du contenu déjà traité (coût API et temps
+inutiles).*
+
+- **Technos** : Python, SQLAlchemy (requêtes d'exclusion sur `video_id`
+  déjà connus)
+- **Output** : logique réutilisée par US-03/US-06/US-08 qui vérifie
+  l'existant avant de traiter, `last_scanned_at` sur `channels` tenu à
+  jour
+- **Process** : avant d'insérer une vidéo découverte, vérifier si son
+  `video_id` existe déjà en base → ne la retraiter que si absente (ou si
+  un indicateur de changement le justifie) → même logique pour les
+  transcripts déjà `fetched` et les chunks déjà générés → mettre à jour
+  `last_scanned_at` en fin de traitement
+
+### US-23 (P2) — Qualité et validation des données ingérées
+*En tant que système, je veux valider la qualité des données à chaque
+étape du pipeline (transcript vide, chunk mal formé, timestamps
+incohérents), afin de ne pas polluer l'index de recherche avec du
+contenu inexploitable ou corrompu.*
+
+- **Technos** : Python (fonctions de validation simples ; un outil dédié
+  type Great Expectations serait disproportionné pour ce volume de
+  données)
+- **Output** : fonctions `validate_transcript()` et `validate_chunk()`
+  appelées avant insertion dans US-06/US-08, rejets loggués plutôt que
+  silencieux
+- **Process** : définir les règles de validation (transcript non vide,
+  longueur minimale, `start_seconds < end_seconds`, pas de doublon exact
+  de texte) → les appliquer avant chaque insertion → logger les rejets
+  avec la raison, sans faire planter tout le pipeline pour une seule
+  vidéo problématique
+
+### US-24 (P2) — Monitoring et observabilité du pipeline
+*En tant qu'opérateur ou admin plateforme, je veux voir des métriques
+claires sur l'état du pipeline (nombre de vidéos traitées, taux
+d'échec, temps d'exécution), afin de détecter rapidement un problème
+sans avoir à lire des logs bruts.*
+
+- **Technos** : logs structurés Python (`structlog` ou `logging` avec
+  formattage JSON), l'UI native de Prefect (US-21) pour une première
+  visibilité, un tableau de bord dédié seulement si le besoin dépasse ce
+  que Prefect offre déjà
+- **Output** : logs structurés exploitables (par pasteur, par étape,
+  avec statut/durée), écran de suivi étendu (US-05/US-07) alimenté par
+  ces métriques
+- **Process** : remplacer les `print()` actuels par des logs structurés
+  avec contexte (`pastor_id`, étape, statut) → exploiter les métriques
+  déjà exposées par Prefect pour les exécutions de flow → étendre
+  l'endpoint de stats (US-05) avec taux d'échec et durée moyenne par
+  étape
+
+---
+
 ## Proposition de séquencement pour démarrer
 
 Pour un premier bout-à-bout fonctionnel (même basique, en CLI/scripts,
@@ -318,3 +425,10 @@ US-06 → US-08 → US-09 → US-10**.
 filtrée → transcription → indexation → question/réponse sourcée. Tout
 le reste (formulaire, widget, recommandation) vient après que ce cœur
 fonctionne sur le cas Sanogo.
+
+**Sur le Data Engineering (Epic G)** : pas nécessaire pour ce premier
+bout-à-bout avec un seul pasteur test — US-22 (incrémental) et US-23
+(qualité) apportent de la valeur dès que tu ré-exécutes le pipeline
+plusieurs fois ; US-21 (orchestration) et US-24 (monitoring) prennent
+tout leur sens quand il y a plusieurs pasteurs et une exécution
+récurrente, pas avant.

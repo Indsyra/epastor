@@ -53,9 +53,10 @@ def extract_subtasks(body: str) -> list[str]:
             process_lines.append(first)
             continue
         if capturing:
-            if line.strip() == "":
-                break  # fin du paragraphe
-            process_lines.append(line.strip())
+            stripped = line.strip()
+            if stripped == "" or (stripped.startswith("- **") and not stripped.startswith("- **Process**")):
+                break  # fin du paragraphe Process (ligne vide ou nouvelle puce)
+            process_lines.append(stripped)
 
     if not process_lines:
         return []
