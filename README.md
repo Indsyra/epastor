@@ -1,110 +1,226 @@
 # ePastor
 
-Plateforme permettant à tout pasteur/serviteur/église de rendre son
-contenu YouTube interrogeable en langage naturel — avec réponses sourcées
-(vidéo + timestamp) et renvoi vers son catalogue de livres quand pertinent.
+A platform allowing any pastor, minister, or church to make their
+YouTube content searchable in natural language — with sourced answers
+(video + timestamp) and links to their book catalog when relevant.
 
-> 📄 Voir [`docs/SPECS.md`](docs/SPECS.md) pour la vision complète et
-> [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md) pour le schéma de données.
+> 📄 See [`docs/SPECS.md`](docs/SPECS.md) for the full vision and
+> [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md) for the data schema.
+>
+> 🇫🇷 Version française : [`README.fr.md`](README.fr.md)
 
-## Statut du projet
+## Project status
 
-🚧 **En phase de spécification.** Le modèle de données et les specs v1
-sont validés. Le code est encore minimal (script de découverte vidéo
-uniquement). Rien n'est en production.
+🚧 **Specification phase mostly done, first data layer implemented.**
+The v1 specs and data model are validated. The database schema (7
+tables) is implemented, tested, and migrated with Alembic. The
+ingestion pipeline (video discovery script) exists but still needs to
+be wired to the database. Nothing is in production.
 
-## Concept en une phrase
+## Concept in one sentence
 
-Un moteur unique (découverte de vidéos → transcription → indexation
-vectorielle → réponse sourcée par IA), réutilisable pour n'importe quel
-pasteur, avec deux façons d'y accéder :
+A single generic engine (video discovery → transcription → vector
+indexing → sourced AI answer), reusable for any pastor, with two ways
+to access it:
 
-- **Widget intégré** à un site d'église existant (une instance fixe)
-- **App ePastor générale**, où le visiteur choisit ses pasteurs préférés
-  et reçoit aussi des suggestions de pasteurs "associés"
+- **Embedded widget** on an existing church website (a fixed instance)
+- **General ePastor app**, where the visitor picks preferred pastors and
+  also gets suggestions for "associated" pastors
 
-## Structure du repo
+## Repo structure
 
 ```
 epastor/
-├── docs/            specs et modèle de données (source de vérité du projet)
-├── db/              modèles ORM + migrations (base multi-tenant, un pasteur = un tenant)
-├── ingestion/        découverte vidéos → transcription → chunking/embeddings
-├── catalog/          gestion du catalogue de livres par pasteur
-├── agent/             LangGraph : retrieval → réponse sourcée → enrichissement livres
-├── api/               FastAPI (routes opérateur / visiteur / widget)
-├── web/                interfaces (formulaire opérateur, chatbot visiteur)
-├── config.py           paramètres techniques globaux (pas la liste des pasteurs — voir db/)
+├── docs/            specs and data model (source of truth for the project)
+├── db/              ORM models + Alembic migrations (multi-tenant base, one pastor = one tenant)
+├── ingestion/        video discovery → transcription → chunking/embeddings
+├── catalog/          per-pastor book catalog management
+├── agent/             LangGraph: retrieval → sourced answer → book enrichment
+├── api/               FastAPI (operator / visitor / widget routes)
+├── web/                interfaces (operator form, visitor chatbot)
+├── scripts/            one-off/admin scripts (e.g. GitHub issue sync from user stories)
+├── config.py           global technical settings (not the list of pastors — see db/)
 └── tests/
 ```
 
-## Principe clé : multi-tenant dès la v1
+## Key principle: multi-tenant from v1
 
-Un pasteur = un `tenant_id`. Toutes les données (vidéos, chunks, livres)
-sont dans une base unique, filtrées par pasteur — pas une base séparée
-par pasteur. Ce choix est documenté dans `docs/SPECS.md` §3.
+One pastor = one `tenant_id`. All data (videos, chunks, books) lives in
+a single database, filtered by pastor — not a separate database per
+pastor. This choice is documented in `docs/SPECS.md` §3.
 
-## Cas de test de référence
+## Reference test case
 
-Le développement est validé sur le cas de Mohammed Sanogo (double chaîne
-YouTube — personnelle + église, avec filtrage par intervenant nécessaire
-sur la seconde — et catalogue de livres externe), car c'est le cas le
-plus complexe couvert par les specs. Une fois validé dessus, le même
-moteur doit fonctionner pour un pasteur avec une seule chaîne et aucun
-catalogue, sans changement de code.
+Development is validated against Mohammed Sanogo's case (dual YouTube
+channel — personal + church, requiring speaker-based filtering on the
+second one — plus an external book catalog), since it's the most
+complex case covered by the specs. Once validated on him, the same
+engine must work for a pastor with a single channel and no catalog,
+with zero code changes.
 
-## Ce qui est fait / à faire
+## What's done / what's left
 
-- [x] Specs v1 (`docs/SPECS.md`)
-- [x] Modèle de données (`docs/DATA_MODEL.md`)
-- [x] User stories v1, avec technos/output/process par story (`docs/USER_STORIES.md`)
-- [x] Script de découverte vidéo, version fichier (`ingestion/discover_videos.py`)
-      — encore basé sur `config.py` en dur, doit migrer vers la base
-- [x] Script de création automatique des issues GitHub à partir des US
-      (`scripts/create_github_issues.py`)
-- [ ] **US-01 — Modèles ORM (`db/models.py`) — en cours**
+- [x] v1 specs (`docs/SPECS.md`)
+- [x] Data model (`docs/DATA_MODEL.md`)
+- [x] v1 user stories, with tech/output/process per story (`docs/USER_STORIES.md`)
+- [x] Video discovery script, file-based version (`ingestion/discover_videos.py`)
+      — still driven by a hardcoded `config.py`, needs to migrate to the database
+- [x] Script that syncs GitHub issues from the user stories file
+      (`scripts/create_github_issues.py`), with update-in-place support
+      and auto-generated sub-task checklists from each story's Process section
+- [x] **US-01 — ORM models + migrations — done**
   - [x] `Base` (`db/base.py`)
-  - [x] Modèle `Pastor` (id, display_name, church_name, created_at, status
-        en `Enum` natif avec `create_constraint=True`) — testé (insertion,
-        contrainte enum, valeurs par défaut)
-  - [x] Modèle `Channel` (id, pastor_id en clé étrangère, youtube_url,
-        youtube_channel_id, requires_speaker_filter, name_keywords en
-        `JSON`, last_scanned_at) — testé en bout en bout (insertion,
-        relecture depuis une nouvelle session, contrainte de clé étrangère
-        vérifiée, `PRAGMA foreign_keys=ON` requis sous SQLite)
-  - [ ] Modèle `Video`
-  - [ ] Modèle `TranscriptChunk`
-  - [ ] Modèle `Book`
-  - [ ] Modèle `Visitor`
-  - [ ] Modèle `VisitorPastorFollow`
-  - [ ] `db/session.py` (connexion, avec le `PRAGMA foreign_keys=ON` pour SQLite)
-  - [ ] Migration Alembic initiale
-- [ ] US-02 — Script de seed (créer un pasteur/chaîne en base)
-- [ ] Migration de la découverte vers la base (US-03/04/05)
+  - [x] `Pastor` model (id, display_name, church_name, created_at, status
+        as a native `Enum` with `create_constraint=True`)
+  - [x] `Channel` model (id, pastor_id as foreign key, youtube_url,
+        youtube_channel_id, requires_speaker_filter, name_keywords as
+        `JSON`, last_scanned_at)
+  - [x] `Video` model (id = YouTube video id as `String(11)`, not a UUID;
+        channel_id + pastor_id denormalized, transcript_status as `Enum`)
+  - [x] `TranscriptChunk` model (text as `Text`, start/end_seconds as
+        `Float`; `embedding` intentionally absent — lives in FAISS,
+        linked by `id`, not stored in the relational database)
+  - [x] `Book` model (per-pastor catalog)
+  - [x] `Visitor` model
+  - [x] `VisitorPastorFollow` model (composite primary key
+        visitor_id + pastor_id, no separate technical id)
+  - [x] `db/session.py` (engine, `PRAGMA foreign_keys=ON` for SQLite,
+        `SessionLocal` factory, reads `DATABASE_URL`)
+  - [x] Alembic configured (`alembic.ini`, `db/migrations/env.py`) and
+        initial migration generated + applied — see detailed section below
+- [ ] US-02 — Seed script (create a pastor/channel in the database)
+- [ ] Migrate discovery to the database (US-03/04/05)
 - [ ] Transcription (`ingestion/fetch_transcripts.py`)
 - [ ] Chunking + embeddings (`ingestion/chunk_and_embed.py`)
-- [ ] Agent LangGraph (retrieval + réponse + extraction livres)
-- [ ] API FastAPI
-- [ ] Formulaire opérateur
-- [ ] Interface chatbot visiteur
+- [ ] LangGraph agent (retrieval + answer + book extraction)
+- [ ] FastAPI API
+- [ ] Operator form
+- [ ] Visitor chatbot interface
+- [ ] Epic G — orchestration, incremental ingestion, data quality,
+      monitoring (see `docs/USER_STORIES.md` US-21 to US-24)
 
-**Environnement de dev actuel** : SQLite (fichier local, zéro install) pour
-apprendre et itérer vite. Migration vers PostgreSQL prévue avant tout
-déploiement réel (voir `docs/USER_STORIES.md` US-01) — le code SQLAlchemy
-reste quasi identique entre les deux, seule la chaîne de connexion change.
+**Current dev environment**: SQLite (local file, zero install) to learn
+and iterate fast. Migration to PostgreSQL is planned before any real
+deployment (see `docs/USER_STORIES.md` US-01) — the SQLAlchemy code
+stays nearly identical between the two, only the connection string
+changes.
 
-## Hors périmètre v1
+## Out of scope for v1
 
-Voir `docs/SPECS.md` §6 — notamment : pas de texte intégral de livres
-(droits d'auteur), pas d'authentification/paiement, pas de calcul de
-recommandation par co-occurrence (structure prévue, algorithme en v2).
+See `docs/SPECS.md` §6 — notably: no full book text ingestion
+(copyright), no authentication/payment, no co-occurrence-based
+recommendation engine (data structure ready, algorithm deferred to v2),
+and no LLM-generated "pastor style" imitation (deliberately dropped, not
+just deferred — see SPECS.md §6 for the reasoning; replaced by a
+lighter approach: citing the pastor's exact wording more generously
+within existing quotation limits).
 
-## Setup local (à date)
+## Alembic — schema migration management
 
-```bash
-pip install yt-dlp
+Added as part of US-01. This section documents what Alembic does and
+why, so it doesn't need to be rediscovered later.
+
+### The problem Alembic solves
+
+`Base.metadata.create_all(engine)` (used during the initial testing of
+`db/models.py`) creates tables that don't exist yet, but **never
+modifies an already-existing table**. If a column is added to `Pastor`
+later on, `create_all` does nothing — the database stays out of sync
+with the code. Alembic solves this with **versioned migration
+scripts**, able to evolve an existing database (add/rename/drop a
+column, etc.) without losing the data already there.
+
+### Structure in place
+
+```
+epastor/
+├── alembic.ini              # general config
+└── db/migrations/
+    ├── env.py                 # connection + model detection
+    ├── script.py.mako         # template for each new migration
+    └── versions/
+        └── 4e1ab6dd2715_initial_schema.py   # the initial migration
+```
+
+### Project-specific configuration
+
+Two files were adapted from what `alembic init` generates by default,
+so the connection string is only defined in one place (`DATABASE_URL`,
+the same variable used by `db/session.py`):
+
+- **`alembic.ini`**: the `sqlalchemy.url = ...` line was removed / left
+  commented out — the real value is injected dynamically by `env.py`,
+  not read from this file.
+- **`db/migrations/env.py`**: two additions compared to the
+  default-generated file:
+  1. Import of `Base` **and** every model class
+     (`from db.models import Pastor, Channel, ...`). This isn't
+     cosmetic: `Base.metadata` only "knows" about a table if its class
+     has actually been executed by Python at least once. Importing
+     `Base` alone isn't enough.
+  2. Reading `DATABASE_URL` from the environment and injecting it into
+     Alembic's config via `config.set_main_option("sqlalchemy.url", ...)`,
+     with the same SQLite fallback default as `db/session.py`.
+
+### Working cycle with Alembic
+
+1. **Modify `db/models.py`** (add/change a field)
+2. **Generate a migration**:
+   ```powershell
+   alembic revision --autogenerate -m "description of the change"
+   ```
+   Alembic compares `Base.metadata` (what the code says) against the
+   actual state of the database, and generates a script in
+   `db/migrations/versions/` with two functions: `upgrade()` (applies
+   the change) and `downgrade()` (reverts it).
+3. **⚠️ Always review the generated script before applying it.**
+   `--autogenerate` is not 100% reliable — concretely tested on this
+   project: adding a simple field to `Pastor` produced two spurious
+   `op.drop_constraint(...)` calls on the enum `CHECK` constraints
+   (`status`, `transcript_status`), which hadn't actually changed. This
+   is a known Alembic false positive with enums on SQLite. Applied as-is,
+   this script would have dropped valid constraints for no reason. →
+   always read `upgrade()` line by line before the next step.
+4. **Apply the migration**:
+   ```powershell
+   alembic upgrade head
+   ```
+   `head` means "the most recent migration". Alembic knows which
+   migrations have already been applied thanks to the technical
+   `alembic_version` table, created automatically in the database — it
+   holds a single row pointing to the last applied migration, which lets
+   `upgrade head` only replay what's missing.
+
+### This project's initial migration
+
+`4e1ab6dd2715_initial_schema.py` — generated via autogeneration from the
+7 models, applied successfully. Contains one `op.create_table(...)` per
+table, in an order that respects foreign-key dependencies (`pastors`
+before `channels`/`books`, etc.), automatically inferred by Alembic from
+the `ForeignKey` declarations in `models.py`.
+
+### Reference commands
+
+```powershell
+# Generate a new migration after modifying models.py
+alembic revision --autogenerate -m "description"
+
+# Apply all pending migrations
+alembic upgrade head
+
+# Roll back one migration (uses downgrade())
+alembic downgrade -1
+
+# View migration history
+alembic history
+```
+
+## Local setup (as of now)
+
+```powershell
+pip install yt-dlp sqlalchemy alembic requests
 python -m ingestion.discover_videos --dry-run
 ```
 
-Nécessite de renseigner les chaînes cibles dans `config.py` pour l'instant
-(migration vers un formulaire prévue — voir "Ce qui est fait / à faire").
+Requires target channels to be set in `config.py` for now (migration to
+a web form planned — see "What's done / what's left").
