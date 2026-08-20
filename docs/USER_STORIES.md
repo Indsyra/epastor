@@ -74,6 +74,36 @@ pasteurs.*
   depuis `config.py`) → appliquer la même heuristique de matching sur le
   titre → stocker le résultat, sans supprimer les vidéos exclues (utile
   pour audit/ajustement du filtre plus tard)
+- **Lien avec US-25** : ce filtre répond à "qui parle ?" (intervenant).
+  Sur une chaîne perso (`requires_speaker_filter=false`), un filtrage
+  complémentaire par émission ciblée est possible — voir US-25, un
+  mécanisme indépendant, pas un remplacement de celui-ci.
+
+### US-25 (P2) — Filtrer les vidéos par émission ciblée (chaîne perso)
+*En tant qu'opérateur avec une chaîne personnelle diffusant plusieurs
+émissions récurrentes (ex: "Flamme matinale", "Nightfire"), je veux
+pouvoir définir ces émissions et ne faire indexer que celles qui
+m'intéressent, afin de ne pas noyer le chatbot avec du contenu hors
+sujet (ex: annonces, rediffusions génériques) présent sur la même
+chaîne.*
+
+- **Technos** : Python (même logique de matching que
+  `title_mentions_speaker`, réutilisée pour matcher un titre contre les
+  `keywords` d'une émission plutôt que contre un nom de pasteur),
+  SQLAlchemy
+- **Output** : table `shows` peuplée (US-12 étendu au formulaire, ou
+  script de seed en attendant), champ `show_id` rempli sur `videos`
+  quand une émission est détectée
+- **Process** : pour une chaîne donnée, récupérer ses `shows` actifs →
+  si aucune émission active, ne rien filtrer (comportement actuel
+  inchangé) → si au moins une émission active, ne retenir que les
+  vidéos dont le titre matche les `keywords` d'au moins une émission →
+  stocker `show_id` sur la vidéo retenue pour traçabilité
+- **Note de conception** : mécanisme volontairement indépendant de
+  `requires_speaker_filter`/US-04 — l'un répond à "qui parle ?", l'autre
+  à "dans quelle émission ?". Une chaîne pourrait en théorie combiner les
+  deux plus tard, mais ce n'est pas le besoin actuel (le filtrage par
+  émission ne cible que les chaînes perso pour l'instant).
 
 ### US-05 (P1) — Voir le nombre de vidéos trouvées/retenues
 *En tant qu'opérateur, je veux voir combien de vidéos ont été trouvées
