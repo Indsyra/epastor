@@ -215,15 +215,17 @@ instance sans toucher au code.*
 depuis l'interface (bouton), afin de ne pas dépendre d'un script en
 ligne de commande.*
 
-- **Technos** : FastAPI (endpoint déclencheur), orchestrateur de pipeline
-  pour l'exécution réelle (voir US-21, Epic G) — `BackgroundTasks` de
-  FastAPI reste une option de repli minimaliste si l'orchestrateur n'est
-  pas encore en place
-- **Output** : endpoint `POST /pastors/{id}/ingest` qui déclenche le flow
-  d'ingestion (US-03 → US-06 → US-08) via l'orchestrateur
-- **Process** : encapsuler les 3 scripts existants en tâches de
-  l'orchestrateur (US-21) → l'endpoint déclenche une exécution du flow →
-  mettre à jour un statut consultable (US-05/US-24 étendus)
+- **Technos** : FastAPI (endpoint déclencheur), Apache Airflow comme
+  orchestrateur de l'exécution réelle (voir US-21, Epic G) — `BackgroundTasks`
+  de FastAPI reste une option de repli minimaliste si Airflow n'est pas
+  encore en place
+- **Output** : endpoint `POST /pastors/{id}/ingest` qui déclenche le DAG
+  d'ingestion (US-03 → US-06 → US-08) via l'API Airflow (déclenchement
+  d'un DAG run)
+- **Process** : encapsuler les 3 scripts existants en tâches du DAG
+  Airflow (US-21) → l'endpoint appelle l'API REST d'Airflow pour
+  déclencher une exécution du DAG (`dagRuns`) → mettre à jour un statut
+  consultable (US-05/US-24 étendus)
 
 ### US-14 (P1) — Gérer son catalogue de livres
 *En tant qu'opérateur, je veux gérer mon catalogue de livres
@@ -347,17 +349,20 @@ plutôt qu'enchaîné manuellement, afin d'avoir une reprise automatique en
 cas d'échec partiel et une exécution planifiée (nouveau contenu détecté
 périodiquement sans action manuelle).*
 
-- **Technos** : Prefect (plus léger et plus rapide à prendre en main
-  qu'Airflow pour un projet solo ; Airflow reste une option si on veut
-  se rapprocher d'un standard plus répandu en entreprise)
-- **Output** : un flow Prefect définissant les 3 étapes comme des tâches
+- **Technos** : Apache Airflow — préféré à une alternative plus légère
+  (ex: Prefect) malgré la charge d'opération plus lourde pour un projet
+  solo, car c'est un standard reconnu en entreprise (orchestration de
+  pipelines de données) et une compétence directement valorisable en
+  candidature AI/Data Engineering
+- **Output** : un DAG Airflow définissant les 3 étapes comme des tâches
   liées (`discover → transcribe → chunk_and_embed`), visible et
-  relançable depuis l'UI Prefect
+  relançable depuis l'UI Airflow
 - **Process** : convertir `discover_videos.py`, `fetch_transcripts.py`,
-  `chunk_and_embed.py` en tâches Prefect (`@task`) → les assembler dans
-  un flow (`@flow`) avec dépendances explicites entre elles → configurer
-  une reprise automatique en cas d'échec sur une tâche → programmer une
-  exécution planifiée (ex: quotidienne) par pasteur actif
+  `chunk_and_embed.py` en tâches Airflow (`PythonOperator` ou `@task`
+  avec l'API TaskFlow) → les assembler dans un DAG avec dépendances
+  explicites entre elles → configurer des retries automatiques en cas
+  d'échec sur une tâche → programmer une exécution planifiée (ex:
+  quotidienne) par pasteur actif via un `schedule_interval`
 
 ### US-22 (P1) — Ingestion incrémentale et idempotence
 *En tant que système, je veux ne retraiter que les vidéos réellement
@@ -401,15 +406,15 @@ d'échec, temps d'exécution), afin de détecter rapidement un problème
 sans avoir à lire des logs bruts.*
 
 - **Technos** : logs structurés Python (`structlog` ou `logging` avec
-  formattage JSON), l'UI native de Prefect (US-21) pour une première
+  formattage JSON), l'UI native d'Airflow (US-21) pour une première
   visibilité, un tableau de bord dédié seulement si le besoin dépasse ce
-  que Prefect offre déjà
+  qu'Airflow offre déjà
 - **Output** : logs structurés exploitables (par pasteur, par étape,
   avec statut/durée), écran de suivi étendu (US-05/US-07) alimenté par
   ces métriques
 - **Process** : remplacer les `print()` actuels par des logs structurés
   avec contexte (`pastor_id`, étape, statut) → exploiter les métriques
-  déjà exposées par Prefect pour les exécutions de flow → étendre
+  déjà exposées par Airflow pour les exécutions de DAG → étendre
   l'endpoint de stats (US-05) avec taux d'échec et durée moyenne par
   étape
 
