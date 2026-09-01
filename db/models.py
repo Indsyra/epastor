@@ -31,7 +31,6 @@ class HumanContactRequestCategoryEnum(str, enum.Enum):
 class ContactMethodEnum(str, enum.Enum):
     EMAIL = "email"
     PHONE = "phone"
-    IN_PERSON = "in_person"
 
 class HumanContactRequestStatusEnum(str, enum.Enum):
     NEW = "new"
@@ -124,7 +123,7 @@ class PrayerSignal(Base):
     first_name: Mapped[str | None] = mapped_column(String(255), nullable=True, default=None)
     note: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
-    status: Mapped[PrayerSignalStatusEnum] = mapped_column(Enum(PrayerSignalStatusEnum), nullable=False, default=PrayerSignalStatusEnum.NEW)
+    status: Mapped[PrayerSignalStatusEnum] = mapped_column(Enum(PrayerSignalStatusEnum, create_constraint=True), nullable=False, default=PrayerSignalStatusEnum.NEW)
 
 class HumanContactRequest(Base):
     __tablename__ = "human_contact_requests"
@@ -132,9 +131,9 @@ class HumanContactRequest(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     pastor_id: Mapped[str] = mapped_column(ForeignKey("pastors.id"), nullable=False)
     first_name: Mapped[str | None] = mapped_column(String(255), nullable=True, default=None)
-    category: Mapped[HumanContactRequestCategoryEnum] = mapped_column(Enum(HumanContactRequestCategoryEnum), nullable=False)
-    contact_method: Mapped[ContactMethodEnum] = mapped_column(Enum(ContactMethodEnum), nullable=False)
-    contact_value: Mapped[str | None] = mapped_column(String(255), nullable=True, default=None)
+    category: Mapped[HumanContactRequestCategoryEnum] = mapped_column(Enum(HumanContactRequestCategoryEnum, create_constraint=True), nullable=False)
+    contact_method: Mapped[ContactMethodEnum] = mapped_column(Enum(ContactMethodEnum, create_constraint=True), nullable=False)
+    contact_value: Mapped[str] = mapped_column(String(255), nullable=False)
     note: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
-    status: Mapped[HumanContactRequestStatusEnum] = mapped_column(Enum(HumanContactRequestStatusEnum), nullable=False, default=HumanContactRequestStatusEnum.NEW)
+    status: Mapped[HumanContactRequestStatusEnum] = mapped_column(Enum(HumanContactRequestStatusEnum, create_constraint=True), nullable=False, default=HumanContactRequestStatusEnum.NEW)
