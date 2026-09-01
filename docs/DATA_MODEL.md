@@ -37,9 +37,48 @@ Une ou plusieurs chaînes YouTube rattachées à un pasteur (spec §4).
 | name_keywords | string[] | Variantes de nom si filtre actif (ex: ["sanogo", "apôtre sanogo"]) |
 | last_scanned_at | timestamp, nullable | Pour savoir quand relancer la découverte |
 
+**Double usage de `name_keywords` selon `requires_speaker_filter`** :
+- Si `requires_speaker_filter=true` (chaîne multi-orateurs) : variantes du
+  nom du pasteur, utilisées par `title_mentions_speaker()` pour ne
+  retenir que ses interventions (usage actif dès US-04).
+- Si `requires_speaker_filter=false` (chaîne perso) : historiquement
+  utilisé pour noter les émissions/segments récurrents de la chaîne (ex:
+  "flamme matinale", "nightfire") en attendant que la table `shows`
+  ci-dessous existe formellement — voir §2bis pour le mécanisme réel.
+
 **Lien avec le code existant** : c'est la version "en base" de la liste
 `CHANNELS` codée en dur dans `config.py`. Une ligne = un élément de cette
 liste, mais éditable via formulaire au lieu d'un fichier.
+
+## 2bis. `shows` (émissions ciblées, optionnel par chaîne)
+
+Permet à un pasteur de définir des émissions/segments récurrents sur sa
+**chaîne personnelle**, pour filtrer les vidéos par émission plutôt que
+par intervenant — mécanisme indépendant de `requires_speaker_filter`
+(qui répond à "qui parle ?"), celui-ci répond à "dans quelle émission ?".
+
+| Champ | Type | Notes |
+|---|---|---|
+| id | UUID | PK |
+| channel_id | UUID | FK → channels.id |
+| name | string | Nom de l'émission (ex: "Flamme matinale") |
+| keywords | string[] | Mots-clés de titre pour la reconnaissance (ex: ["flamme matinale"]) |
+| is_active | boolean | Désactiver une émission sans la supprimer (émission arrêtée) |
+
+**Comportement attendu** : si une chaîne n'a aucune émission active
+définie, aucun filtrage par émission ne s'applique (comportement actuel
+inchangé — tout le contenu de la chaîne est retenu, sous réserve du
+filtre intervenant s'il est actif). Si au moins une émission active
+existe pour la chaîne, seules les vidéos dont le titre matche au moins
+une émission sont retenues.
+
+**Lien avec `channels.name_keywords`** : le champ `name_keywords` sur
+`channels` avait été renseigné en avance pour ce cas d'usage (voir note
+§2) avant que la table `shows` existe formellement. À terme, cette
+donnée devrait migrer vers des lignes `shows` plutôt que de rester dans
+`channels.name_keywords`, pour permettre plusieurs émissions distinctes
+avec activation individuelle — non fait immédiatement, à traiter lors de
+l'implémentation (voir US dédiée dans `USER_STORIES.md`).
 
 ---
 
@@ -52,6 +91,7 @@ Résultat de la découverte (`discover_videos.py`), une ligne par vidéo retenue
 | id (video_id YouTube) | string | PK, pas un UUID — c'est déjà unique |
 | channel_id | UUID | FK → channels.id |
 | pastor_id | UUID | FK → pastors.id (dénormalisé, évite une jointure à chaque requête) |
+| show_id | UUID, nullable | FK → shows.id — émission détectée, si filtrage par émission actif (§2bis) |
 | title | string | |
 | url | string | |
 | duration_seconds | int, nullable | |
@@ -131,7 +171,9 @@ reste hors périmètre v1 (spec §6).
 
 ```
 pastors (1) ──< channels (1) ──< videos (1) ──< transcript_chunks
-   │                                                    
+   │                  │                │
+   │                  └──< shows ──────┘  (video.show_id optionnel)
+   │
    ├──< books
    │
    └──< visitor_pastor_follows >── visitors

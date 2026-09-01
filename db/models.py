@@ -37,12 +37,22 @@ class Channel(Base):
     name_keywords: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     last_scanned_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
+class Show(Base):
+    __tablename__ = "shows"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    channel_id: Mapped[str] = mapped_column(ForeignKey("channels.id"), nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    keywords: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
 class Video(Base):
     __tablename__ = "videos"
 
     id: Mapped[str] = mapped_column(String(11), primary_key=True)
     channel_id: Mapped[str] = mapped_column(ForeignKey("channels.id"), nullable=False)
     pastor_id: Mapped[str] = mapped_column(ForeignKey("pastors.id"), nullable=False)
+    show_id: Mapped[str | None] = mapped_column(ForeignKey("shows.id"), nullable=True)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     url: Mapped[str] = mapped_column(String(2083), nullable=False)
     duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
