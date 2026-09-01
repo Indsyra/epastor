@@ -1,8 +1,10 @@
 # ePastor
 
 A platform allowing any pastor, minister, or church to make their
-YouTube content searchable in natural language — with sourced answers
-(video + timestamp) and links to their book catalog when relevant.
+YouTube content searchable in natural language — helping someone find
+concrete answers to practical life questions (depression, prayer,
+prosperity, discipline...) through real teachings, with sourced answers
+(video + timestamp) and links to the book catalog when relevant.
 
 > 📄 See [`docs/SPECS.md`](docs/SPECS.md) for the full vision and
 > [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md) for the data schema.
@@ -11,21 +13,28 @@ YouTube content searchable in natural language — with sourced answers
 
 ## Project status
 
-🚧 **Specification phase mostly done, first data layer implemented.**
-The v1 specs and data model are validated. The database schema (7
-tables) is implemented, tested, and migrated with Alembic. The
-ingestion pipeline (video discovery script) exists but still needs to
-be wired to the database. Nothing is in production.
+🚧 **Specs and data model largely formalized, first data layer
+implemented and tested.** The schema (10 tables) runs locally with
+Alembic, and a unit test suite covers the core models. Ingestion, the
+agent, and the API still need to be built. Nothing is in production.
 
 ## Concept in one sentence
 
 A single generic engine (video discovery → transcription → vector
-indexing → sourced AI answer), reusable for any pastor, with two ways
-to access it:
+indexing → sourced AI answer, capable of synthesizing across several
+videos and, carefully, the book catalog), reusable for any pastor, with
+three ways to access it:
 
 - **Embedded widget** on an existing church website (a fixed instance)
 - **General ePastor app**, where the visitor picks preferred pastors and
   also gets suggestions for "associated" pastors
+- **General mode**, with no pastor selected, for broad life questions
+  that cut across several teachers — with strict named attribution when
+  positions diverge, never blended into a single voice
+
+Sensitive topics (mental health, distress, material needs) get careful
+handling: the tool always points toward real human support, never acts
+as a substitute — see the dedicated section below.
 
 ## Repo structure
 
@@ -35,12 +44,12 @@ epastor/
 ├── db/              ORM models + Alembic migrations (multi-tenant base, one pastor = one tenant)
 ├── ingestion/        video discovery → transcription → chunking/embeddings
 ├── catalog/          per-pastor book catalog management
-├── agent/             LangGraph: retrieval → sourced answer → book enrichment
+├── agent/             LangGraph: multi-source retrieval → synthesis → book enrichment
 ├── api/               FastAPI (operator / visitor / widget routes)
 ├── web/                interfaces (operator form, visitor chatbot)
+├── tests/              unit tests (pytest, in-memory SQLite)
 ├── scripts/            one-off/admin scripts (e.g. GitHub issue sync from user stories)
-├── config.py           global technical settings (not the list of pastors — see db/)
-└── tests/
+└── config.py           global technical settings (not the list of pastors — see db/)
 ```
 
 ## Key principle: multi-tenant from v1
@@ -70,13 +79,17 @@ with zero code changes.
       and auto-generated sub-task checklists from each story's Process section
 - [x] **US-01 — ORM models + migrations — done**
   - [x] `Base` (`db/base.py`)
-  - [x] `Pastor` model (id, display_name, church_name, created_at, status
-        as a native `Enum` with `create_constraint=True`)
+  - [x] `Pastor` model (id, display_name, church_name,
+        pastoral_team_contact_email, created_at, status as a native
+        `Enum` with `create_constraint=True`)
   - [x] `Channel` model (id, pastor_id as foreign key, youtube_url,
         youtube_channel_id, requires_speaker_filter, name_keywords as
         `JSON`, last_scanned_at)
+  - [x] `Show` model (targeted shows on a personal channel, optional —
+        channel_id, name, JSON keywords, is_active)
   - [x] `Video` model (id = YouTube video id as `String(11)`, not a UUID;
-        channel_id + pastor_id denormalized, transcript_status as `Enum`)
+        channel_id + pastor_id denormalized, optional show_id,
+        transcript_status as `Enum`)
   - [x] `TranscriptChunk` model (text as `Text`, start/end_seconds as
         `Float`; `embedding` intentionally absent — lives in FAISS,
         linked by `id`, not stored in the relational database)
@@ -88,22 +101,57 @@ with zero code changes.
         `SessionLocal` factory, reads `DATABASE_URL`)
   - [x] Alembic configured (`alembic.ini`, `db/migrations/env.py`) and
         initial migration generated + applied — see detailed section below
-- [ ] US-02 — Seed script (create a pastor/channel in the database)
+  - [x] Unit test suite (`tests/`, pytest + in-memory SQLite) — 19 tests
+        covering the first 8 models
+  - [ ] `PrayerSignal` and `HumanContactRequest` models (sensitive
+        topics, US-32/US-33) — fully specified in `docs/DATA_MODEL.md`
+        §8bis/§8ter, not yet coded
+- [x] **US-02 — Seed script — done** (Sanogo pastor + 2 channels,
+      idempotent, tested twice with no duplicates)
 - [ ] Migrate discovery to the database (US-03/04/05)
+- [ ] Targeted show filtering (US-25, P2, personal channel)
 - [ ] Transcription (`ingestion/fetch_transcripts.py`)
 - [ ] Chunking + embeddings (`ingestion/chunk_and_embed.py`)
-- [ ] LangGraph agent (retrieval + answer + book extraction)
+- [ ] LangGraph agent — simple case (US-09/US-10)
+- [ ] LangGraph agent — multi-source synthesis (US-26 to US-28, Epic H)
+- [ ] General mode + conversational interaction (US-29/US-30, Epic I)
+- [ ] Sensitive-topic safeguards + prayer signal + human contact request
+      (US-31 to US-33, Epic I) — **involves a real GDPR policy, see
+      dedicated section below**
 - [ ] FastAPI API
 - [ ] Operator form
 - [ ] Visitor chatbot interface
-- [ ] Epic G — orchestration, incremental ingestion, data quality,
-      monitoring (see `docs/USER_STORIES.md` US-21 to US-24)
+- [ ] Epic G — orchestration (Apache Airflow), incremental ingestion,
+      data quality, monitoring, **automatic purge of sensitive data
+      (US-34, P0 — blocking before real production)**
+      (see `docs/USER_STORIES.md` US-21 to US-24 and US-34)
 
 **Current dev environment**: SQLite (local file, zero install) to learn
 and iterate fast. Migration to PostgreSQL is planned before any real
 deployment (see `docs/USER_STORIES.md` US-01) — the SQLAlchemy code
 stays nearly identical between the two, only the connection string
 changes.
+
+## Sensitive topics — mental health, distress, material needs
+
+The general mode (5c) has to answer real life questions ("how do I get
+out of depression?"), which carries real responsibility. Principles
+already decided (details in `docs/USER_STORIES.md` US-31 to US-34 and
+`docs/DATA_MODEL.md` §8bis/§8ter):
+
+- The tool is **never a substitute** for real human support — any answer
+  on a sensitive topic points toward professional/community support,
+  even when the source content (a video) doesn't do so explicitly.
+- **No automatic or silent reporting**: the "prayer signal" and "human
+  contact request" only trigger through a deliberate, explicit action by
+  the visitor — never from the system merely detecting a sensitive topic.
+- **Dual recipient, disclosed upfront**: every signal goes to both the
+  pastor's team and the ePastor support team — this must be stated
+  clearly to the person before they consent, not buried in general terms.
+- **Short retention and a proposed automatic purge** (14-30 days
+  depending on the table, details in `DATA_MODEL.md`) — to be validated
+  with legal counsel/a DPO before any real production deployment; this
+  is not legal advice, just a reasonable technical default.
 
 ## Out of scope for v1
 

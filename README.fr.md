@@ -1,8 +1,11 @@
 # ePastor
 
 Plateforme permettant à tout pasteur/serviteur/église de rendre son
-contenu YouTube interrogeable en langage naturel — avec réponses sourcées
-(vidéo + timestamp) et renvoi vers son catalogue de livres quand pertinent.
+contenu YouTube interrogeable en langage naturel — pour aider une
+personne à trouver des réponses concrètes à des questions de vie
+pratique (dépression, prière, prospérité, discipline...) à travers de
+vrais enseignements, avec réponses sourcées (vidéo + timestamp) et
+renvoi vers le catalogue de livres quand pertinent.
 
 > 📄 Voir [`docs/SPECS.md`](docs/SPECS.md) pour la vision complète et
 > [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md) pour le schéma de données.
@@ -11,19 +14,30 @@ contenu YouTube interrogeable en langage naturel — avec réponses sourcées
 
 ## Statut du projet
 
-🚧 **En phase de spécification.** Le modèle de données et les specs v1
-sont validés. Le code est encore minimal (script de découverte vidéo
-uniquement). Rien n'est en production.
+🚧 **Specs et modèle de données largement formalisés, première couche
+de données implémentée et testée.** Le schéma (10 tables) tourne en
+local avec Alembic, une suite de tests unitaires couvre les modèles
+principaux. L'ingestion, l'agent et l'API restent à construire. Rien
+n'est en production.
 
 ## Concept en une phrase
 
 Un moteur unique (découverte de vidéos → transcription → indexation
-vectorielle → réponse sourcée par IA), réutilisable pour n'importe quel
-pasteur, avec deux façons d'y accéder :
+vectorielle → réponse sourcée par IA, capable de synthétiser plusieurs
+vidéos et, prudemment, le catalogue de livres), réutilisable pour
+n'importe quel pasteur, avec trois façons d'y accéder :
 
 - **Widget intégré** à un site d'église existant (une instance fixe)
 - **App ePastor générale**, où le visiteur choisit ses pasteurs préférés
   et reçoit aussi des suggestions de pasteurs "associés"
+- **Mode général**, sans sélection de pasteur, pour les grandes questions
+  de vie qui traversent plusieurs enseignants — avec attribution nommée
+  stricte quand les positions divergent, jamais de fusion en voix unique
+
+Un soin particulier est porté aux sujets sensibles (santé mentale,
+détresse, besoins matériels) : l'outil oriente toujours vers un
+accompagnement humain réel, jamais comme substitut — voir la section
+dédiée plus bas.
 
 ## Structure du repo
 
@@ -33,11 +47,12 @@ epastor/
 ├── db/              modèles ORM + migrations (base multi-tenant, un pasteur = un tenant)
 ├── ingestion/        découverte vidéos → transcription → chunking/embeddings
 ├── catalog/          gestion du catalogue de livres par pasteur
-├── agent/             LangGraph : retrieval → réponse sourcée → enrichissement livres
+├── agent/             LangGraph : retrieval multi-sources → synthèse → enrichissement livres
 ├── api/               FastAPI (routes opérateur / visiteur / widget)
 ├── web/                interfaces (formulaire opérateur, chatbot visiteur)
+├── tests/              tests unitaires (pytest, SQLite en mémoire)
 ├── config.py           paramètres techniques globaux (pas la liste des pasteurs — voir db/)
-└── tests/
+└── scripts/            scripts admin (ex: synchronisation des issues GitHub)
 ```
 
 ## Principe clé : multi-tenant dès la v1
@@ -67,13 +82,17 @@ catalogue, sans changement de code.
       sous-tâches générées depuis la section Process de chaque US
 - [x] **US-01 — Modèles ORM + migrations — terminée**
   - [x] `Base` (`db/base.py`)
-  - [x] Modèle `Pastor` (id, display_name, church_name, created_at, status
-        en `Enum` natif avec `create_constraint=True`)
+  - [x] Modèle `Pastor` (id, display_name, church_name,
+        pastoral_team_contact_email, created_at, status en `Enum` natif
+        avec `create_constraint=True`)
   - [x] Modèle `Channel` (id, pastor_id en clé étrangère, youtube_url,
         youtube_channel_id, requires_speaker_filter, name_keywords en
         `JSON`, last_scanned_at)
+  - [x] Modèle `Show` (émissions ciblées sur chaîne perso, optionnel —
+        channel_id, name, keywords en `JSON`, is_active)
   - [x] Modèle `Video` (id = id YouTube en `String(11)`, pas un UUID ;
-        channel_id + pastor_id dénormalisés, transcript_status en `Enum`)
+        channel_id + pastor_id dénormalisés, show_id optionnel,
+        transcript_status en `Enum`)
   - [x] Modèle `TranscriptChunk` (text en `Text`, start/end_seconds en
         `Float` ; `embedding` volontairement absent — vit dans FAISS,
         relié par `id`, pas en base)
@@ -85,21 +104,59 @@ catalogue, sans changement de code.
         `SessionLocal` factory, lecture de `DATABASE_URL`)
   - [x] Alembic configuré (`alembic.ini`, `db/migrations/env.py`) et
         migration initiale générée + appliquée — voir détail ci-dessous
-- [ ] US-02 — Script de seed (créer un pasteur/chaîne en base)
+  - [x] Suite de tests unitaires (`tests/`, pytest + SQLite en mémoire) —
+        19 tests couvrant les 8 premiers modèles
+  - [ ] Modèles `PrayerSignal` et `HumanContactRequest` (sujets
+        sensibles, US-32/US-33) — spécifiés en détail dans
+        `docs/DATA_MODEL.md` §8bis/§8ter, pas encore codés
+- [x] **US-02 — Script de seed — terminée** (pasteur + 2 chaînes Sanogo,
+      idempotent, testé deux fois sans doublon)
 - [ ] Migration de la découverte vers la base (US-03/04/05)
+- [ ] Filtrage par émission ciblée (US-25, P2, chaîne perso)
 - [ ] Transcription (`ingestion/fetch_transcripts.py`)
 - [ ] Chunking + embeddings (`ingestion/chunk_and_embed.py`)
-- [ ] Agent LangGraph (retrieval + réponse + extraction livres)
+- [ ] Agent LangGraph — cas simple (US-09/US-10)
+- [ ] Agent LangGraph — synthèse multi-sources (US-26 à US-28, Epic H)
+- [ ] Mode général + interaction conversationnelle (US-29/US-30, Epic I)
+- [ ] Garde-fous sujets sensibles + signalement de prière + mise en
+      relation humaine (US-31 à US-33, Epic I) — **implique une vraie
+      politique RGPD, voir section dédiée ci-dessous**
 - [ ] API FastAPI
 - [ ] Formulaire opérateur
 - [ ] Interface chatbot visiteur
-- [ ] Epic G — orchestration, ingestion incrémentale, qualité des
-      données, monitoring (voir `docs/USER_STORIES.md` US-21 à US-24)
+- [ ] Epic G — orchestration (Apache Airflow), ingestion incrémentale,
+      qualité des données, monitoring, **purge automatique des données
+      sensibles (US-34, P0 — bloquant avant prod réelle)**
+      (voir `docs/USER_STORIES.md` US-21 à US-24 et US-34)
 
 **Environnement de dev actuel** : SQLite (fichier local, zéro install) pour
 apprendre et itérer vite. Migration vers PostgreSQL prévue avant tout
 déploiement réel (voir `docs/USER_STORIES.md` US-01) — le code SQLAlchemy
 reste quasi identique entre les deux, seule la chaîne de connexion change.
+
+## Sujets sensibles — santé mentale, détresse, besoins matériels
+
+Le mode général (5c) doit répondre à de vraies questions de vie
+("comment sortir de la dépression ?"), ce qui implique une
+responsabilité particulière. Principes actés (détail dans
+`docs/USER_STORIES.md` US-31 à US-34 et `docs/DATA_MODEL.md` §8bis/§8ter) :
+
+- L'outil **n'est jamais un substitut** à un accompagnement humain réel —
+  toute réponse sur un sujet sensible oriente vers un accompagnement
+  professionnel/communautaire, même quand le contenu source (une vidéo)
+  ne le fait pas explicitement.
+- **Aucun signalement automatique/silencieux** : le "signalement de
+  prière" et la "mise en relation humaine" ne se déclenchent que par une
+  action volontaire et explicite du visiteur — jamais par la simple
+  détection d'un sujet sensible côté système.
+- **Double destinataire à divulguer** : chaque signalement va à la fois
+  à l'équipe du pasteur et à l'équipe support ePastor — ça doit être dit
+  clairement à la personne avant qu'elle consente, pas caché dans des
+  conditions générales.
+- **Rétention courte et purge automatique proposée** (14-30 jours selon
+  la table, détail en `DATA_MODEL.md`) — à valider avec un conseil
+  juridique/DPO avant toute mise en production réelle ; ce n'est pas un
+  avis juridique, seulement un défaut technique raisonnable.
 
 ## Alembic — gestion des migrations de schéma
 
