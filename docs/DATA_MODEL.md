@@ -14,6 +14,7 @@ L'entité centrale. Un pasteur = une instance = un `tenant_id`.
 | id (tenant_id) | UUID | PK |
 | display_name | string | Nom public ("Mohammed Sanogo") |
 | church_name | string, nullable | Ex: "Vases d'Honneur" |
+| pastoral_team_contact_email | string, nullable | Destinataire des signalements de prière et demandes de contact (§8bis, §8ter) — non renseigné par défaut, les deux fonctionnalités restent inactives tant qu'il ne l'est pas |
 | created_at | timestamp | |
 | status | enum | `pending`, `active`, `suspended` — cf. Q ouverte "légitimité opérateur" |
 
@@ -164,6 +165,84 @@ Table de liaison — les pasteurs qu'un visiteur suit/préfère.
 **Cette table est la base du futur calcul de recommandation** ("pasteurs
 associés" = co-occurrence dans cette table), mais le calcul lui-même
 reste hors périmètre v1 (spec §6).
+
+---
+
+## 8bis. `prayer_signals` (signalement de prière — sensible, RGPD)
+
+Émis uniquement par une action volontaire et explicite du visiteur (ex:
+bouton "Prier pour moi" à la fin d'une réponse sur un sujet sensible) —
+**jamais généré automatiquement** par la détection d'un sujet sensible
+côté système. Voir note RGPD en fin de section.
+
+| Champ | Type | Notes |
+|---|---|---|
+| id | UUID | PK |
+| pastor_id | UUID | FK → pastors.id — destinataire via `pastoral_team_contact_email` |
+| first_name | string, nullable | Fourni volontairement ; absent par défaut (anonyme) |
+| note | text, nullable | Mot libre écrit par la personne elle-même ; **jamais pré-rempli automatiquement à partir de sa question d'origine** |
+| created_at | timestamp | |
+| status | enum | `new`, `prayed` — suivi côté équipe pastorale |
+
+## 8ter. `human_contact_requests` (mise en relation — sensible, RGPD, données identifiantes)
+
+Plus sensible que `prayer_signals` : implique de vraies coordonnées de
+contact. Émis par une action opt-in séparée (ex: "Être recontacté(e) par
+quelqu'un de l'équipe"), avec un écran de consentement explicite
+indiquant clairement qui recontactera la personne et pourquoi.
+
+| Champ | Type | Notes |
+|---|---|---|
+| id | UUID | PK |
+| pastor_id | UUID | FK → pastors.id |
+| first_name | string, nullable | |
+| category | enum | `emotional_spiritual`, `housing`, `financial`, `administrative`, `other` — motif de la demande, pour orienter l'équipe qui recontacte |
+| contact_method | enum | `phone`, `email` |
+| contact_value | string | Donnée identifiante — accès restreint, rétention courte (voir note RGPD) |
+| note | text, nullable | |
+| created_at | timestamp | |
+| status | enum | `new`, `contacted`, `closed` |
+
+### Note RGPD, applicable aux deux tables ci-dessus
+
+- **Consentement explicite et action volontaire uniquement** : ni l'une
+  ni l'autre table ne doit jamais être peuplée automatiquement par une
+  détection système de sujet sensible (US-31) — seule une action
+  délibérée du visiteur (clic sur un bouton dédié, après avoir vu
+  clairement ce qui sera partagé et à qui) déclenche un enregistrement.
+  Un signalement silencieux à l'insu de la personne serait à la fois un
+  problème éthique (proche de la surveillance plutôt que de
+  l'accompagnement) et une violation du RGPD (données de santé/détresse
+  = catégorie spéciale, article 9, consentement explicite obligatoire).
+- **Minimisation par défaut** : `first_name` reste vide sauf si la
+  personne choisit de le renseigner. `note` n'est jamais pré-rempli
+  depuis la question d'origine.
+- **Double destinataire — à divulguer explicitement** : par défaut,
+  chaque signalement/demande est transmis à **deux** destinataires :
+  l'équipe pastorale du pasteur concerné (`pastoral_team_contact_email`)
+  **et** l'équipe support de la plateforme ePastor, sur une boîte dédiée
+  (supervision transverse, ex: repérer un pasteur qui ne répond jamais).
+  Le RGPD exige que la personne connaisse tous les destinataires de sa
+  donnée avant de consentir — l'écran de consentement (US-32/US-33) doit
+  donc nommer explicitement les deux, pas seulement "l'équipe du
+  pasteur".
+- **Accès restreint** : au-delà de ces deux destinataires déclarés,
+  aucun autre pasteur ni tableau de bord général ne doit exposer ces
+  enregistrements.
+- **Politique de rétention proposée** (défaut technique à valider avec un
+  conseil juridique/DPO avant mise en production réelle — ce qui suit
+  n'est pas un avis juridique) :
+
+  | Table | État | Purge |
+  |---|---|---|
+  | `prayer_signals` | `new`, sans action depuis 14 jours | passe automatiquement à un état clos (pas de suppression immédiate, juste arrêt du suivi actif) |
+  | `prayer_signals` | `prayed` (ou clos automatiquement) | supprimée 30 jours après passage à cet état |
+  | `human_contact_requests` | `new`, sans contact depuis 7 jours | passe automatiquement à un état clos (délai plus court : une demande de contact non traitée après une semaine perd sa pertinence) |
+  | `human_contact_requests` | `contacted`/`closed` | `contact_value` et `first_name` supprimés (anonymisation) sous 14 jours ; `category`/`created_at`/`status` peuvent être conservés sans lien identifiant, à des fins statistiques uniquement |
+
+  Mécanisme d'application : un job planifié (voir US-34, Epic G — cohérent
+  avec le choix Airflow déjà fait pour l'orchestration) qui applique ces
+  règles quotidiennement, plutôt qu'une purge manuelle.
 
 ---
 
