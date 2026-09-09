@@ -36,6 +36,7 @@ class HumanContactRequestStatusEnum(str, enum.Enum):
     NEW = "new"
     CONTACTED = "contacted"
     CLOSED = "closed"
+    
 class LanguageEnum(str, enum.Enum):
     FR = "fr"
     EN = "en"
@@ -83,6 +84,7 @@ class Video(Base):
     speaker_match: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     match_reason: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     transcript_status: Mapped[TranscriptStatusEnum] = mapped_column(Enum(TranscriptStatusEnum, create_constraint=True), nullable=False, default=TranscriptStatusEnum.PENDING)
+    language: Mapped[LanguageEnum | None] = mapped_column(Enum(LanguageEnum, create_constraint=True), nullable=True)
 
 class TranscriptChunk(Base):
     __tablename__ = "transcript_chunks"
