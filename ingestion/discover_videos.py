@@ -11,7 +11,7 @@ def discover_and_save_videos(session, pastor_id: str) -> None:
     channels = get_channels_for_pastor(session, pastor_id)
 
     for channel in channels:
-        raw_videos = list_channel_videos(channel.youtube_url)
+        raw_videos = list_channel_videos(channel.youtube_url, channel.target_tabs)
 
         for raw in raw_videos:
             video_id = raw["video_id"]
@@ -34,6 +34,7 @@ def discover_and_save_videos(session, pastor_id: str) -> None:
                 channel_id=channel.id,
                 upload_date=parse_upload_date(raw["upload_date"]),
                 duration_seconds=raw["duration"],
+                source_tab=raw["source_tab"],
             )
             session.add(video)
         channel.last_scanned_at = datetime.utcnow()
