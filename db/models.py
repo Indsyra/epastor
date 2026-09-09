@@ -36,6 +36,9 @@ class HumanContactRequestStatusEnum(str, enum.Enum):
     NEW = "new"
     CONTACTED = "contacted"
     CLOSED = "closed"
+class LanguageEnum(str, enum.Enum):
+    FR = "fr"
+    EN = "en"
 
 class Pastor(Base):
     __tablename__ = "pastors"

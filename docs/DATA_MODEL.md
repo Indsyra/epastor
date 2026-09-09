@@ -97,6 +97,7 @@ Résultat de la découverte (`discover_videos.py`), une ligne par vidéo retenue
 | url | string | |
 | duration_seconds | int, nullable | |
 | upload_date | date, nullable | |
+| language | enum, nullable | `fr`, `en` — rempli à l'étape transcript (US-06), pas à la découverte : c'est la langue du transcript qui réussit (fr essayé en premier, fallback en) qui fait foi, pas une déduction depuis le titre |
 | speaker_match | boolean | Résultat du filtre titre |
 | match_reason | string | Traçabilité — pourquoi retenue/exclue |
 | transcript_status | enum | `pending`, `fetched`, `unavailable`, `error` |
@@ -118,6 +119,7 @@ Le contenu réellement indexé et recherché (le cœur du RAG).
 | id | UUID | PK |
 | video_id | string | FK → videos.id |
 | pastor_id | UUID | FK → pastors.id (même logique de dénormalisation) |
+| language | enum, nullable | Copié depuis `videos.language` au moment du chunking (US-08) — même logique de dénormalisation que `pastor_id`, pour filtrer par langue au retrieval sans jointure |
 | text | text | Le contenu du chunk |
 | start_seconds | float | Timestamp de départ dans la vidéo |
 | end_seconds | float | |
