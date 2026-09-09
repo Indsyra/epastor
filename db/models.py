@@ -41,6 +41,10 @@ class LanguageEnum(str, enum.Enum):
     FR = "fr"
     EN = "en"
 
+class SourceTabEnum(str, enum.Enum):
+    VIDEOS = "videos"
+    STREAMS = "streams"
+
 class Pastor(Base):
     __tablename__ = "pastors"
 
@@ -60,6 +64,7 @@ class Channel(Base):
     requires_speaker_filter: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     name_keywords: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     last_scanned_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    target_tabs: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=lambda: ["videos", "streams"])
 
 class Show(Base):
     __tablename__ = "shows"
@@ -85,6 +90,8 @@ class Video(Base):
     match_reason: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     transcript_status: Mapped[TranscriptStatusEnum] = mapped_column(Enum(TranscriptStatusEnum, create_constraint=True), nullable=False, default=TranscriptStatusEnum.PENDING)
     language: Mapped[LanguageEnum | None] = mapped_column(Enum(LanguageEnum, create_constraint=True), nullable=True)
+    source_tab: Mapped[SourceTabEnum] = mapped_column(Enum(SourceTabEnum, create_constraint=True), nullable=False)
+    is_excluded_by_config: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
 class TranscriptChunk(Base):
     __tablename__ = "transcript_chunks"

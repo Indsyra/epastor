@@ -26,8 +26,24 @@ def seed():
 
              # 3. Créer les deux Channel (perso + église) rattachés à ce pastor_id
             logger.info("Creating channels for Pastor 'Mohammed Sanogo'...")
-            channel_perso = Channel(id=str(uuid.uuid4()), youtube_channel_id="UC4A20rdIi2CTwydYoMZGnAQ", youtube_url="https://youtube.com/@mohammedsanogo?si=64eJd95xoZ4O9Uf2", pastor_id=pastor.id, requires_speaker_filter=False, name_keywords=["mslive", "mieux que 1000 ailleurs", "flamme matinale", "nightfire", "priere24"])
-            channel_eglise = Channel(id=str(uuid.uuid4()), youtube_channel_id="UCOBrKVhgjiUcSoGyqeo29WA", youtube_url="https://youtube.com/@eglisevasesdhonneur?si=zo438UIDKuTgi22z", pastor_id=pastor.id, requires_speaker_filter=True, name_keywords=["apôtre mohammed sanogo", "pst mohammed sanogo", "pasteur mohammed sanogo"])
+            channel_perso = Channel(
+                id=str(uuid.uuid4()),
+                youtube_channel_id="UC4A20rdIi2CTwydYoMZGnAQ",
+                youtube_url="https://youtube.com/@mohammedsanogo?si=64eJd95xoZ4O9Uf2",
+                pastor_id=pastor.id,
+                requires_speaker_filter=False,
+                name_keywords=["mslive", "mieux que 1000 ailleurs", "flamme matinale", "nightfire", "priere24"],
+                target_tabs=["streams"],
+            )
+            channel_eglise = Channel(
+                id=str(uuid.uuid4()),
+                youtube_channel_id="UCOBrKVhgjiUcSoGyqeo29WA",
+                youtube_url="https://youtube.com/@eglisevasesdhonneur?si=zo438UIDKuTgi22z",
+                pastor_id=pastor.id,
+                requires_speaker_filter=True,
+                name_keywords=["apôtre mohammed sanogo", "pst mohammed sanogo", "pasteur mohammed sanogo"],
+                target_tabs=["streams"],
+            )
             session.add_all([channel_perso, channel_eglise])
             logger.info(f"Channels created for Pastor 'Mohammed Sanogo': {channel_perso.youtube_url}, {channel_eglise.youtube_url}")
     
