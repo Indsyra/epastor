@@ -8,7 +8,7 @@ def build_tab_url(channel_url: str, tab: str) -> str:
     clean_path = parsed.path.rstrip("/") + f"/{tab}"
     return urlunparse((parsed.scheme, parsed.netloc, clean_path, "", "", ""))
 
-def list_channel_videos(channel_url: str) -> list[dict]:
+def list_channel_videos(channel_url: str, target_tabs: list[str]) -> list[dict]:
     """
     List all videos from a YouTube channel without downloading the content.
 
@@ -28,7 +28,7 @@ def list_channel_videos(channel_url: str) -> list[dict]:
 
     all_videos = []
 
-    for tab in TARGET_TABS:
+    for tab in target_tabs:
         videos_url = build_tab_url(channel_url, tab)
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -55,6 +55,7 @@ def list_channel_videos(channel_url: str) -> list[dict]:
                     "url": f"https://www.youtube.com/watch?v={video_id}",
                     "duration": e.get("duration"),
                     "upload_date": e.get("upload_date"),
+                    "source_tab": tab,
                 }
             )
         all_videos.extend(videos)

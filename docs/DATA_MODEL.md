@@ -36,6 +36,7 @@ Une ou plusieurs chaînes YouTube rattachées à un pasteur (spec §4).
 | youtube_channel_id | string, nullable | Rempli après première découverte |
 | requires_speaker_filter | boolean | Chaîne perso (false) vs multi-orateurs (true) |
 | name_keywords | string[] | Variantes de nom si filtre actif (ex: ["sanogo", "apôtre sanogo"]) |
+| target_tabs | string[] | Onglets YouTube à scanner : `["videos"]`, `["streams"]`, ou les deux. Défaut : les deux. Remplace la constante codée en dur `TARGET_TABS` de la v1 |
 | last_scanned_at | timestamp, nullable | Pour savoir quand relancer la découverte |
 
 **Double usage de `name_keywords` selon `requires_speaker_filter`** :
@@ -101,6 +102,15 @@ Résultat de la découverte (`discover_videos.py`), une ligne par vidéo retenue
 | speaker_match | boolean | Résultat du filtre titre |
 | match_reason | string | Traçabilité — pourquoi retenue/exclue |
 | transcript_status | enum | `pending`, `fetched`, `unavailable`, `error` |
+| source_tab | enum | `videos`, `streams` — onglet YouTube d'où la vidéo a été découverte |
+| is_excluded_by_config | boolean | `true` si `source_tab` n'est plus dans `channel.target_tabs` — la vidéo reste en base (et son éventuel transcript aussi) mais n'est plus utilisée pour le retrieval. Réévalué à chaque exécution de la découverte, jamais de suppression |
+
+**Réconciliation `target_tabs` / `is_excluded_by_config`** : contrairement à
+une suppression, ce flag préserve tout travail déjà fait (transcript,
+chunks, embeddings) sur une vidéo si l'opérateur retire temporairement un
+onglet de sa config, puis le réactive — rien à retraiter. Une suppression
+aurait aussi été bloquée techniquement par la clé étrangère
+`transcript_chunks.video_id` dès qu'un chunk existe pour cette vidéo.
 
 **Pourquoi dénormaliser `pastor_id` ici alors qu'on peut le retrouver via `channel_id` ?**
 Toutes les requêtes de retrieval (spec §5b : "pioche dans préférés + associés")
