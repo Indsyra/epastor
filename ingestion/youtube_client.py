@@ -24,6 +24,7 @@ def list_channel_videos(channel_url: str, target_tabs: list[str]) -> list[dict]:
         "quiet": True,
         "no_warnings": True,
         "skip_download": True,
+        "extractor_args": {"youtubetab": {"approximate_date": [""]}},
     }
 
     all_videos = []
@@ -54,7 +55,7 @@ def list_channel_videos(channel_url: str, target_tabs: list[str]) -> list[dict]:
                     "title": e.get("title", ""),
                     "url": f"https://www.youtube.com/watch?v={video_id}",
                     "duration": e.get("duration"),
-                    "upload_date": e.get("upload_date"),
+                    "timestamp": e.get("timestamp"),
                     "source_tab": tab,
                 }
             )

@@ -1,11 +1,15 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from db.session import SessionLocal
 from sqlalchemy import select
 from db.models import Pastor, Video
 from db.queries import get_channels_for_pastor
 from ingestion.youtube_client import list_channel_videos
-from ingestion.matching import title_mentions_speaker, parse_upload_date
+from ingestion.matching import title_mentions_speaker
 
+def parse_upload_date(raw: str | None) -> datetime | None:
+    if not raw:
+        return None
+    return datetime.fromtimestamp(raw, tz=timezone.utc).replace(tzinfo=None)
 
 def discover_and_save_videos(session, pastor_id: str) -> None:
     channels = get_channels_for_pastor(session, pastor_id)
@@ -32,7 +36,7 @@ def discover_and_save_videos(session, pastor_id: str) -> None:
                 match_reason=reason,
                 pastor_id=pastor_id,
                 channel_id=channel.id,
-                upload_date=parse_upload_date(raw["upload_date"]),
+                upload_date=parse_upload_date(raw["timestamp"]),
                 duration_seconds=raw["duration"],
                 source_tab=raw["source_tab"],
             )
