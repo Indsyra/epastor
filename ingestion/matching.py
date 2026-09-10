@@ -15,8 +15,3 @@ def title_mentions_speaker(title: str, name_keywords: list[str]) -> tuple[bool, 
         if normalize(keyword) in norm_title:
             return True, f"nom trouvé: '{keyword}'"
     return False, "no mention"
-
-def parse_upload_date(raw: str | None) -> datetime | None:
-    if not raw:
-        return None
-    return datetime.strptime(raw, "%Y%m%d")
