@@ -45,6 +45,10 @@ class SourceTabEnum(str, enum.Enum):
     VIDEOS = "videos"
     STREAMS = "streams"
 
+class ChunkingStatusEnum(str, enum.Enum):
+    PENDING = "pending"
+    DONE = "done"
+
 class Pastor(Base):
     __tablename__ = "pastors"
 
@@ -92,6 +96,7 @@ class Video(Base):
     language: Mapped[LanguageEnum | None] = mapped_column(Enum(LanguageEnum, create_constraint=True), nullable=True)
     source_tab: Mapped[SourceTabEnum] = mapped_column(Enum(SourceTabEnum, create_constraint=True), nullable=False)
     is_excluded_by_config: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    chunking_status: Mapped[ChunkingStatusEnum] = mapped_column(Enum(ChunkingStatusEnum, create_constraint=True), nullable=False, default=ChunkingStatusEnum.PENDING)
 
 class TranscriptChunk(Base):
     __tablename__ = "transcript_chunks"
@@ -102,6 +107,7 @@ class TranscriptChunk(Base):
     text: Mapped[str] = mapped_column(Text, nullable=False)
     start_seconds: Mapped[float] = mapped_column(Float, nullable=False)
     end_seconds: Mapped[float] = mapped_column(Float, nullable=False)
+    language: Mapped[LanguageEnum | None] = mapped_column(Enum(LanguageEnum, create_constraint=True), nullable=True)
 
 class Book(Base):
     __tablename__ = "books"
