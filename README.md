@@ -9,6 +9,10 @@ prosperity, discipline...) through real teachings, with sourced answers
 > 📄 See [`docs/SPECS.md`](docs/SPECS.md) for the full vision and
 > [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md) for the data schema.
 >
+> 🗺️ Visual progress: [`docs/roadmap/chronological.mermaid`](docs/roadmap/chronological.mermaid)
+> (execution order) and [`docs/roadmap/by_epic.mermaid`](docs/roadmap/by_epic.mermaid)
+> (grouped by epic) — updated after each completed user story.
+>
 > 🇫🇷 Version française : [`README.fr.md`](README.fr.md)
 
 ## Project status

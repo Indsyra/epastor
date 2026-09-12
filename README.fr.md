@@ -10,6 +10,10 @@ renvoi vers le catalogue de livres quand pertinent.
 > 📄 Voir [`docs/SPECS.md`](docs/SPECS.md) pour la vision complète et
 > [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md) pour le schéma de données.
 >
+> 🗺️ Avancement visuel : [`docs/roadmap/chronological.mermaid`](docs/roadmap/chronological.mermaid)
+> (ordre d'exécution) et [`docs/roadmap/by_epic.mermaid`](docs/roadmap/by_epic.mermaid)
+> (regroupé par epic) — mis à jour après chaque user story terminée.
+>
 > 🇬🇧 English version (reference): [`README.md`](README.md)
 
 ## Statut du projet
