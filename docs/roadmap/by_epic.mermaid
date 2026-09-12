@@ -16,7 +16,7 @@ flowchart TD
     end
 
     subgraph C["Epic C — Indexation &amp; recherche"]
-        C08["US-08<br/>Chunking"]
+        C08["US-08<br/>Chunking + embeddings<br/>+ FAISS (653 chunks)"]
         C09["US-09<br/>RAG simple"]
         C10["US-10<br/>Citation source"]
         C11["US-11<br/>Extraction livres"]
@@ -73,8 +73,8 @@ flowchart TD
     classDef critical fill:#e74c3c,stroke:#c0392b,color:#fff,font-weight:bold
     classDef partial fill:#f39c12,stroke:#d68910,color:#fff,font-weight:bold
 
-    class A01,A02,B03,B04,BEXT1,B06,BEXT2 done
+    class A01,A02,B03,B04,BEXT1,B06,BEXT2,C08 done
     class B25 partial
-    class C08 next
-    class B05,B07,C09,C10,C11,D12,D13,D14,E15,E16,E17,E18,F19,F20,G21,G22,G23,G24,H26,H27,H28,I29,I30,I31,I32,I33 pending
+    class C09 next
+    class B05,B07,C10,C11,D12,D13,D14,E15,E16,E17,E18,F19,F20,G21,G22,G23,G24,H26,H27,H28,I29,I30,I31,I32,I33 pending
     class G34 critical

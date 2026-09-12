@@ -102,6 +102,7 @@ Résultat de la découverte (`discover_videos.py`), une ligne par vidéo retenue
 | speaker_match | boolean | Résultat du filtre titre |
 | match_reason | string | Traçabilité — pourquoi retenue/exclue |
 | transcript_status | enum | `pending`, `fetched`, `unavailable`, `error` |
+| chunking_status | enum | `pending`, `done` — suit si les chunks (US-08) ont déjà été générés pour cette vidéo, indépendamment de `transcript_status` |
 | source_tab | enum | `videos`, `streams` — onglet YouTube d'où la vidéo a été découverte |
 | is_excluded_by_config | boolean | `true` si `source_tab` n'est plus dans `channel.target_tabs` — la vidéo reste en base (et son éventuel transcript aussi) mais n'est plus utilisée pour le retrieval. Réévalué à chaque exécution de la découverte, jamais de suppression |
 
