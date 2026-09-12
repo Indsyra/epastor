@@ -1,0 +1,80 @@
+flowchart TD
+    subgraph A["Epic A — Fondations données"]
+        A01["US-01<br/>Schéma DB"]
+        A02["US-02<br/>Seed pasteur"]
+    end
+
+    subgraph B["Epic B — Découverte &amp; ingestion vidéo"]
+        B03["US-03<br/>Découverte"]
+        B04["US-04<br/>Filtrage intervenant"]
+        BEXT1["target_tabs /<br/>source_tab"]
+        B06["US-06<br/>Transcripts"]
+        BEXT2["language"]
+        B05["US-05<br/>Stats découverte"]
+        B07["US-07<br/>Vidéos sans transcript"]
+        B25["US-25<br/>Filtrage émission"]
+    end
+
+    subgraph C["Epic C — Indexation &amp; recherche"]
+        C08["US-08<br/>Chunking"]
+        C09["US-09<br/>RAG simple"]
+        C10["US-10<br/>Citation source"]
+        C11["US-11<br/>Extraction livres"]
+    end
+
+    subgraph H["Epic H — Synthèse multi-sources"]
+        H26["US-26<br/>Décomposition question"]
+        H27["US-27<br/>Synthèse multi-vidéos"]
+        H28["US-28<br/>Suggestion livres"]
+    end
+
+    subgraph I["Epic I — Mode général &amp; sensible"]
+        I29["US-29<br/>Mode général"]
+        I30["US-30<br/>Conversation"]
+        I31["US-31<br/>Garde-fous santé mentale"]
+        I32["US-32<br/>Signalement prière"]
+        I33["US-33<br/>Mise en relation"]
+    end
+
+    subgraph D["Epic D — Config opérateur"]
+        D12["US-12<br/>Formulaire pasteur"]
+        D13["US-13<br/>Déclenchement ingestion"]
+        D14["US-14<br/>Gestion catalogue"]
+    end
+
+    subgraph E["Epic E — Accès visiteur"]
+        E15["US-15<br/>Widget"]
+        E16["US-16<br/>Pasteurs préférés"]
+        E17["US-17<br/>Pasteurs associés"]
+        E18["US-18<br/>Cas limite vide"]
+    end
+
+    subgraph F["Epic F — Confiance &amp; modération"]
+        F19["US-19<br/>Validation opérateur"]
+        F20["US-20<br/>Réponses hors corpus"]
+    end
+
+    subgraph G["Epic G — Data Engineering"]
+        G21["US-21<br/>Orchestration Airflow"]
+        G22["US-22<br/>Ingestion incrémentale"]
+        G23["US-23<br/>Qualité données"]
+        G24["US-24<br/>Monitoring"]
+        G34["US-34<br/>Purge RGPD"]
+    end
+
+    A --> B --> C --> H --> I
+    C --> D --> E
+    I -.déploiement réel.-> G
+    E -.déploiement réel.-> G
+
+    classDef done fill:#2ecc71,stroke:#27ae60,color:#fff,font-weight:bold
+    classDef next fill:#3498db,stroke:#2980b9,color:#fff,font-weight:bold
+    classDef pending fill:#95a5a6,stroke:#7f8c8d,color:#fff
+    classDef critical fill:#e74c3c,stroke:#c0392b,color:#fff,font-weight:bold
+    classDef partial fill:#f39c12,stroke:#d68910,color:#fff,font-weight:bold
+
+    class A01,A02,B03,B04,BEXT1,B06,BEXT2 done
+    class B25 partial
+    class C08 next
+    class B05,B07,C09,C10,C11,D12,D13,D14,E15,E16,E17,E18,F19,F20,G21,G22,G23,G24,H26,H27,H28,I29,I30,I31,I32,I33 pending
+    class G34 critical

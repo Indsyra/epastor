@@ -1,0 +1,46 @@
+flowchart TD
+    subgraph FAIT["✅ DÉJÀ FAIT"]
+        direction TB
+        US01["US-01<br/>Schéma DB<br/>(10 tables)"]
+        US02["US-02<br/>Seed pasteur<br/>idempotent"]
+        US03["US-03<br/>Découverte vidéos<br/>(5652 réelles)"]
+        US04["US-04<br/>Filtrage<br/>intervenant"]
+        EXT1["target_tabs /<br/>source_tab<br/>(extension)"]
+        EXT2["language<br/>sur Video<br/>(extension)"]
+        US06["US-06<br/>Transcripts<br/>(fr/en + blocage)"]
+    end
+
+    US01 --> US02 --> US03 --> US04 --> EXT1 --> EXT2 --> US06
+
+    subgraph AVENIR["⏳ À VENIR"]
+        direction TB
+        US08["US-08<br/>Chunking +<br/>embeddings"]
+        US0910["US-09 / US-10<br/>Agent RAG<br/>cas simple"]
+        US0507["US-05 / US-07<br/>Écrans de suivi"]
+        US11["US-11<br/>Extraction<br/>livres"]
+        EPICH["Epic H<br/>Synthèse<br/>multi-sources"]
+        EPICI["Epic I<br/>Mode général +<br/>garde-fous sensibles"]
+        EPICD["Epic D<br/>Formulaire<br/>opérateur"]
+        EPICE["Epic E<br/>Widget +<br/>préférences"]
+        EPICG["Epic G<br/>Orchestration +<br/>purge RGPD (P0)"]
+    end
+
+    US06 --> US08 --> US0910
+    US0910 --> US0507
+    US0910 --> US11
+    US0910 --> EPICH
+    EPICH --> EPICI
+    EPICI --> EPICD
+    EPICD --> EPICE
+    EPICI -.déploiement réel.-> EPICG
+    EPICE -.déploiement réel.-> EPICG
+
+    classDef done fill:#2ecc71,stroke:#27ae60,color:#fff,font-weight:bold
+    classDef next fill:#3498db,stroke:#2980b9,color:#fff,font-weight:bold
+    classDef pending fill:#95a5a6,stroke:#7f8c8d,color:#fff
+    classDef critical fill:#e74c3c,stroke:#c0392b,color:#fff,font-weight:bold
+
+    class US01,US02,US03,US04,EXT1,EXT2,US06 done
+    class US08 next
+    class US0910,US0507,US11,EPICH,EPICI,EPICD,EPICE pending
+    class EPICG critical
