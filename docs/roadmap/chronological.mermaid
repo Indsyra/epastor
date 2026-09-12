@@ -9,13 +9,14 @@ flowchart TD
         EXT2["language<br/>sur Video<br/>(extension)"]
         US06["US-06<br/>Transcripts<br/>(fr/en + blocage)"]
         US08["US-08<br/>Chunking + embeddings<br/>+ FAISS (653 chunks réels)"]
+        US09["US-09<br/>Retrieval<br/>(validé sur 2 questions réelles)"]
     end
 
-    US01 --> US02 --> US03 --> US04 --> EXT1 --> EXT2 --> US06 --> US08
+    US01 --> US02 --> US03 --> US04 --> EXT1 --> EXT2 --> US06 --> US08 --> US09
 
     subgraph AVENIR["⏳ À VENIR"]
         direction TB
-        US0910["US-09 / US-10<br/>Agent RAG<br/>cas simple"]
+        US10["US-10<br/>Génération de réponse<br/>(OpenAI gpt-4o-mini) + citation"]
         US0507["US-05 / US-07<br/>Écrans de suivi"]
         US11["US-11<br/>Extraction<br/>livres"]
         EPICH["Epic H<br/>Synthèse<br/>multi-sources"]
@@ -25,10 +26,10 @@ flowchart TD
         EPICG["Epic G<br/>Orchestration +<br/>purge RGPD (P0)"]
     end
 
-    US08 --> US0910
-    US0910 --> US0507
-    US0910 --> US11
-    US0910 --> EPICH
+    US09 --> US10
+    US10 --> US0507
+    US10 --> US11
+    US10 --> EPICH
     EPICH --> EPICI
     EPICI --> EPICD
     EPICD --> EPICE
@@ -40,7 +41,7 @@ flowchart TD
     classDef pending fill:#95a5a6,stroke:#7f8c8d,color:#fff
     classDef critical fill:#e74c3c,stroke:#c0392b,color:#fff,font-weight:bold
 
-    class US01,US02,US03,US04,EXT1,EXT2,US06,US08 done
-    class US0910 next
+    class US01,US02,US03,US04,EXT1,EXT2,US06,US08,US09 done
+    class US10 next
     class US0507,US11,EPICH,EPICI,EPICD,EPICE pending
     class EPICG critical
