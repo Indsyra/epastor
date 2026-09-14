@@ -226,6 +226,14 @@ vérifier l'information à la source.*
   paraphrase systématique — ça restitue une partie du "ton" du pasteur
   sans les risques d'un profil de style généré (voir SPECS.md §6, décision
   actée : pas d'imitation de style par LLM)
+- **Raffinement repoussé, constaté en test réel** : avec `k=20`, un long
+  passage continu découpé en plusieurs chunks consécutifs (30-60s chacun)
+  a dominé le top-k, ne laissant qu'une seule autre vidéo représentée sur
+  20 sources. Avec `k=5` (valeur par défaut retenue pour la v1), l'effet
+  est moins marqué mais reste possible. Une vraie solution (dédupliquer
+  par vidéo, ou pénaliser les chunks trop proches temporellement d'un
+  chunk déjà retenu) est repoussée à un raffinement futur — pas bloquant
+  pour la v1.
 
 ### US-11 (P1) — Enrichir avec le catalogue livres
 *En tant que visiteur, je veux que si un livre du pasteur est mentionné
