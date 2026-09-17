@@ -15,6 +15,7 @@ L'entité centrale. Un pasteur = une instance = un `tenant_id`.
 | display_name | string | Nom public ("Mohammed Sanogo") |
 | church_name | string, nullable | Ex: "Vases d'Honneur" |
 | pastoral_team_contact_email | string, nullable | Destinataire des signalements de prière et demandes de contact (§8bis, §8ter) — non renseigné par défaut, les deux fonctionnalités restent inactives tant qu'il ne l'est pas |
+| book_shop_url | string, nullable | URL de base de la boutique en ligne du pasteur (ex: "https://www.sanogobooks.com") — si Shopify, active le scraping automatique du catalogue (voir §5, US-35) |
 | created_at | timestamp | |
 | status | enum | `pending`, `active`, `suspended` — cf. Q ouverte "légitimité opérateur" |
 
@@ -151,9 +152,18 @@ seule table. **Décision à prendre plus tard**, pas urgente maintenant.
 | id | UUID | PK |
 | pastor_id | UUID | FK → pastors.id |
 | title | string | |
-| url | string | |
+| url | string | Sert de clé de déduplication pour le scraping (US-35) — un `(pastor_id, url)` déjà connu met à jour la ligne existante plutôt que d'en créer une nouvelle |
 | price | string | Garder en texte affichable ("€16,00") plutôt que decimal — pas de calcul dessus |
-| synopsis | text, nullable | |
+| synopsis | text, nullable | Peut provenir du `body_html` renvoyé par `/products.json` (Shopify), converti en texte brut |
+
+**Peuplement automatique (US-35)** : si `pastors.book_shop_url` pointe vers
+une boutique Shopify, un job planifié (Airflow, cohérent avec Epic G)
+peut peupler cette table automatiquement via l'endpoint public
+`/products.json` — pas de scraping HTML fragile, un point d'accès JSON
+standard exposé par défaut sur toute boutique Shopify publique. Reste
+compatible avec la gestion manuelle (US-14) : les deux mécanismes
+écrivent dans la même table, avec `(pastor_id, url)` comme clé de
+déduplication commune.
 
 ---
 

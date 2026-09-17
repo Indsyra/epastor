@@ -301,6 +301,33 @@ tenir à jour sans intervention technique.*
 - **Process** : CRUD standard sur la table `books`, filtré par
   `pastor_id` à chaque opération pour garantir l'isolation multi-tenant
 
+### US-35 (P2) — Peupler automatiquement le catalogue via scraping Shopify
+*En tant qu'opérateur ayant renseigné l'URL de sa boutique en ligne, je
+veux que mon catalogue de livres se peuple et se mette à jour
+automatiquement, afin de ne pas avoir à ressaisir manuellement chaque
+titre, prix et synopsis.*
+
+- **Technos** : `requests` (appel HTTP simple, pas de navigateur headless
+  nécessaire), l'endpoint public `/products.json` exposé par défaut sur
+  toute boutique Shopify (pas de clé API, pas d'authentification), un
+  job planifié Airflow (cohérent avec US-21, Epic G)
+- **Output** : lignes `books` créées/mises à jour pour le pasteur
+  concerné, avec `title`, `price`, `url`, `synopsis` (depuis `body_html`)
+- **Process** : si `pastors.book_shop_url` est renseigné → appeler
+  `{book_shop_url}/products.json?limit=250&page=N` (paginer tant que la
+  page renvoie des produits) → pour chaque produit, extraire titre, prix
+  (`variants[0].price`), url canonique (`{book_shop_url}/products/{handle}`),
+  et synopsis (`body_html` converti en texte brut) → upsert dans `books`
+  en utilisant `(pastor_id, url)` comme clé de déduplication (met à jour
+  si déjà connu, notamment pour les changements de prix, plutôt que de
+  dupliquer)
+- **Note de conception** : ce mécanisme est complémentaire à US-14, pas
+  un remplacement — un opérateur sans boutique Shopify (ou sans boutique
+  du tout) garde la gestion manuelle comme seule option. Uniquement les
+  métadonnées du catalogue sont récupérées (titre, prix, synopsis) —
+  jamais le texte intégral d'un livre, cohérent avec la décision actée
+  dès le début du projet sur les droits d'auteur (voir SPECS.md).
+
 ---
 
 ## Epic E — Accès visiteur (api/, web/visitor/)
