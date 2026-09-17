@@ -55,6 +55,7 @@ class Pastor(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     display_name: Mapped[str] = mapped_column(String(255), nullable=False)
     church_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    book_shop_url: Mapped[str | None] = mapped_column(String(2083), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
     status: Mapped[StatusEnum] = mapped_column(Enum(StatusEnum, create_constraint=True), nullable=False, default=StatusEnum.PENDING)
 
