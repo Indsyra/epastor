@@ -15,6 +15,7 @@ def seed():
         # 1. Vérifier si Sanogo existe déjà (par display_name)
         logger.info("Checking if Pastor 'Mohammed Sanogo' exists in the database...")
         pastor = session.scalars(select(Pastor).where(Pastor.display_name=="Mohammed Sanogo")).first()
+        pastor.book_shop_url = "https://www.sanogobooks.com"
 
         # 2. Si non : créer le Pastor
         if not pastor:
