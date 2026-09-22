@@ -43,3 +43,56 @@ def format_sources(chunks: list[dict]) -> str:
     """
 
     return "Sources:\n" + "\n".join([f"[{i}] {chunk['video_title']} (at {int(chunk['start_seconds'] // 60)}:{int(chunk['start_seconds'] % 60):02d}) - {chunk['video_url']}&t={int(chunk['start_seconds'])}s" for i, chunk in enumerate(chunks, start=1)])
+
+def build_book_extraction_prompt(answer: str) -> list[dict]:
+    """
+    Build messages to ask for book titles quoted in a given answer.
+
+    Args:
+        answer (str): The answer containing potential book titles.
+
+    Returns:
+        list[dict]: The messages to be sent to OpenAI for book extraction.
+    """
+    system_message = " ".join([
+        "You extract book titles that the text presents as something",
+        "the pastor actually teaches about or discusses.",
+        "Do NOT extract a title if it only appears because the assistant",
+        "is declining to answer, saying information is missing, or simply",
+        "repeating a title that was asked about without discussing it.",
+        "Respond ONLY with a JSON object of this exact shape:",
+        '{"book_titles": ["title 1", "title 2"]}.',
+        "If no book is genuinely discussed, respond with an empty list:",
+        '{"book_titles": []}.',
+        "Never invent a title that is not literally present in the text.",
+    ])
+    return [
+        {"role": "system", "content": system_message},
+        {"role": "user", "content": answer},
+    ]
+
+def build_question_generation_prompt(context: str) -> list[dict]:
+    """
+    Build messages to ask the model to generate a plausible question
+    that a visitor might ask, based on an excerpt from a sermon.
+
+    Args:
+        context (str): The excerpt from the sermon.
+
+    Returns:
+        list[dict]: The messages to be sent to OpenAI for question generation.
+    """
+    system_message = " ".join([
+        "You are given an excerpt from a pastor's sermon.",
+        "Generate ONE natural-language question, in the language of the excerpt, that a",
+        "visitor might realistically ask, and that this excerpt would",
+        "help answer.",
+        "The question should sound like something a real person would",
+        "type — not a summary of the excerpt, not a quiz question.",
+        "Respond with ONLY the question, no preamble, no quotation marks.",
+    ])
+
+    return [
+        {"role": "system", "content": system_message},
+        {"role": "user", "content": context},
+    ]
