@@ -470,6 +470,18 @@ inutiles).*
   un indicateur de changement le justifie) → même logique pour les
   transcripts déjà `fetched` et les chunks déjà générés → mettre à jour
   `last_scanned_at` en fin de traitement
+- **Incident réel rencontré (à corriger avec cette US)** : `chunking_status`
+  n'est mis à jour qu'**après** tout le traitement d'une vidéo (chunking +
+  embeddings, une opération longue). Deux exécutions de
+  `chunk_and_embed_for_pastor` lancées à quelques minutes d'écart ont pu
+  toutes les deux lire `chunking_status=pending` sur les mêmes vidéos
+  avant que la première exécution n'ait eu le temps de le passer à
+  `done` — chacune a alors inséré sa propre copie des chunks, doublant
+  silencieusement 8633 lignes sur 16277 (base + index FAISS). Corrigé
+  manuellement après coup (déduplication par `(video_id, start_seconds)`
+  + reconstruction complète de l'index). La vraie protection contre ce
+  cas (verrou de tâche empêchant deux exécutions concurrentes sur un
+  même pasteur) reste à implémenter avec cette US — pas encore fait.
 
 ### US-23 (P2) — Qualité et validation des données ingérées
 *En tant que système, je veux valider la qualité des données à chaque
