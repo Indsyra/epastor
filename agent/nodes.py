@@ -1,11 +1,15 @@
 from typing import TypedDict
 from db.models import Video
+from db.queries import get_books_for_pastor
 from sqlalchemy import select
 from dotenv import load_dotenv
 from agent.retrieval import search_chunks
-import os
 from openai import OpenAI
-from agent.prompts import build_prompt, format_sources
+from agent.prompts import build_prompt, format_sources, build_book_extraction_prompt
+from agent.retrieval import find_matching_book
+
+import os
+import json
 
 load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
@@ -16,6 +20,7 @@ class AgentState(TypedDict):
     pastor_id: str
     chunks: list[dict]
     answer: str
+    books: list[dict]
 
 def get_client() -> OpenAI:
     global _client
@@ -62,3 +67,26 @@ def make_generation_node():
         return state
 
     return generation_node
+
+def make_book_extraction_node(session):
+    def book_extraction_node(state: AgentState) -> AgentState:
+        client = get_client()
+
+        messages = build_book_extraction_prompt(state["answer"])
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            response_format={"type": "json_object"}
+        ).choices[0].message.content
+    
+        extracted_titles = json.loads(response).get("book_titles", [])
+        catalog = get_books_for_pastor(session, state["pastor_id"])
+        matched_books = [find_matching_book(title, catalog) for title in extracted_titles]
+        state["books"] = [
+            {
+                "title": book.title,
+                "price": book.price,
+                "url": book.url, "synopsis": book.synopsis} for book in matched_books if book is not None]
+
+        return state
+    return book_extraction_node
