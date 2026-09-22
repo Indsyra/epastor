@@ -19,7 +19,7 @@ flowchart TD
         C08["US-08<br/>Chunking + embeddings<br/>+ FAISS (653 chunks)"]
         C09["US-09<br/>Agent LangGraph<br/>retrieval + génération"]
         C10["US-10<br/>Citations vidéo<br/>+ timestamp"]
-        C11["US-11<br/>Extraction livres"]
+        C11["US-11<br/>Extraction livres<br/>(rigueur validée, 0 faux positif)"]
     end
 
     subgraph H["Epic H — Synthèse multi-sources"]
@@ -40,7 +40,7 @@ flowchart TD
         D12["US-12<br/>Formulaire pasteur"]
         D13["US-13<br/>Déclenchement ingestion"]
         D14["US-14<br/>Gestion catalogue"]
-        D35["US-35 EN COURS<br/>Scraping Shopify<br/>(fetch OK, extraction+upsert restants)"]
+        D35["US-35<br/>Scraping Shopify<br/>(93 livres réels synchronisés)"]
     end
 
     subgraph E["Epic E — Accès visiteur"]
@@ -74,9 +74,7 @@ flowchart TD
     classDef critical fill:#e74c3c,stroke:#c0392b,color:#fff,font-weight:bold
     classDef partial fill:#f39c12,stroke:#d68910,color:#fff,font-weight:bold
 
-    class A01,A02,B03,B04,BEXT1,B06,BEXT2,C08,C09,C10 done
     class B25 partial
-    class C11 pending
-    class D35 next
+    class A01,A02,B03,B04,BEXT1,B06,BEXT2,C08,C09,C10,D35,C11 done
     class B05,B07,D12,D13,D14,E15,E16,E17,E18,F19,F20,G21,G22,G23,G24,H26,H27,H28,I29,I30,I31,I32,I33 pending
     class G34 critical
