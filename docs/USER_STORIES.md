@@ -502,6 +502,19 @@ inutiles).*
   perdre le travail déjà fait. Les proxys résidentiels ont été écartés
   (contournement des protections YouTube, incompatible avec un projet
   fondé sur le consentement des pasteurs).
+- **Scan incrémental implémenté et validé** : si `last_scanned_at` est
+  vide, la découverte fait un scan complet ; sinon, elle ne liste que les
+  `RECENT_SCAN_LIMIT` (50) vidéos les plus récentes de chaque onglet
+  (option `playlistend` de yt-dlp). Les `video_id` connus sont chargés en
+  une seule requête dans un `set`. Test réel : 50 vidéos listées par
+  chaîne au lieu de ~1900, environ 3 s par exécution, 0 vidéo réinsérée.
+- **Sécurité anti-perte** : si aucune des 50 vidéos les plus récentes
+  n'est déjà connue (plus de 50 publications depuis le dernier scan),
+  la chaîne est rescannée entièrement, pour ne pas laisser de vidéos
+  hors de portée. Ce chemin n'a pas encore été déclenché en conditions
+  réelles : à couvrir par un test unitaire.
+- **Repoussé explicitement** : l'« indicateur de changement » (titre
+  modifié, sous-titres corrigés après coup), pas nécessaire en v1.
 
 ### US-23 (P2) — Qualité et validation des données ingérées
 *En tant que système, je veux valider la qualité des données à chaque
