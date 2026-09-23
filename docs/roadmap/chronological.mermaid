@@ -13,19 +13,22 @@ flowchart TD
         US10["US-10<br/>Citations vidéo<br/>+ timestamp"]
         US35["US-35<br/>Scraping Shopify<br/>(93 livres réels)"]
         US11["US-11<br/>Extraction livres<br/>(rigueur validée, 0 faux positif)"]
+        US22["US-22<br/>Idempotence, verrou<br/>+ scan incrémental"]
     end
-    US01 --> US02 --> US03 --> US04 --> EXT1 --> EXT2 --> US06 --> US08 --> US09 --> US10 --> US35 --> US11
+    US01 --> US02 --> US03 --> US04 --> EXT1 --> EXT2 --> US06 --> US08 --> US09 --> US10 --> US35 --> US11 --> US22
     subgraph AVENIR["⏳ À VENIR"]
         direction TB
         US0507["US-05 / US-07<br/>Écrans de suivi"]
         EPICH["Epic H<br/>Synthèse<br/>multi-sources"]
-        EPICI["Epic I<br/>Mode général +<br/>garde-fous sensibles"]
+        US31["US-31<br/>Garde-fous<br/>santé mentale"]
+        EPICI["Epic I (suite)<br/>Mode général,<br/>conversation, relais humain"]
         EPICD["Epic D<br/>Formulaire<br/>opérateur"]
         EPICE["Epic E<br/>Widget +<br/>préférences"]
         EPICG["Epic G<br/>Orchestration +<br/>purge RGPD (P0)"]
     end
-    US11 --> US0507
-    US11 --> EPICH
+    US22 --> US31
+    US31 --> US0507
+    US31 --> EPICH
     EPICH --> EPICI
     EPICI --> EPICD
     EPICD --> EPICE
@@ -35,6 +38,8 @@ flowchart TD
     classDef next fill:#3498db,stroke:#2980b9,color:#fff,font-weight:bold
     classDef pending fill:#95a5a6,stroke:#7f8c8d,color:#fff
     classDef critical fill:#e74c3c,stroke:#c0392b,color:#fff,font-weight:bold
-    class US01,US02,US03,US04,EXT1,EXT2,US06,US08,US09,US10,US35,US11 done
+    classDef partial fill:#f39c12,stroke:#d68910,color:#fff,font-weight:bold
+    class US01,US02,US03,US04,EXT1,EXT2,US06,US08,US09,US10,US35,US11,US22 done
     class US0507,EPICH,EPICI,EPICD,EPICE pending
+    class US31 next
     class EPICG critical

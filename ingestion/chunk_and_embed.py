@@ -63,6 +63,12 @@ def chunk_and_embed_for_pastor(session, pastor_id: str) -> None:
     
 if __name__ == "__main__":
     from db.models import Pastor
+    from db.locks import pipeline_lock, TaskAlreadyRunningError
+
     with SessionLocal() as session:
         pastor = session.scalars(select(Pastor).where(Pastor.display_name == "Mohammed Sanogo")).first()
-        chunk_and_embed_for_pastor(session, pastor.id)
+        try:
+            with pipeline_lock(session, pastor.id, "chunk_and_embed"):
+                chunk_and_embed_for_pastor(session, pastor.id)
+        except TaskAlreadyRunningError as e:
+            logger.warning(str(e))

@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import JSON, Float, ForeignKey, String, Boolean, DateTime, Enum, Text, func, Integer
+from sqlalchemy import JSON, Float, ForeignKey, String, Boolean, DateTime, Enum, Text, UniqueConstraint, func, Integer
 import enum
 from datetime import datetime
 from sqlalchemy.orm import Mapped, mapped_column
@@ -156,3 +156,12 @@ class HumanContactRequest(Base):
     note: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
     status: Mapped[HumanContactRequestStatusEnum] = mapped_column(Enum(HumanContactRequestStatusEnum, create_constraint=True), nullable=False, default=HumanContactRequestStatusEnum.NEW)
+
+class PipelineLock(Base):
+    __tablename__ = "pipeline_locks"
+    __table_args__ = (UniqueConstraint("pastor_id", "task_name", name="uq_pastor_task_lock"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    pastor_id: Mapped[str] = mapped_column(ForeignKey("pastors.id"), nullable=False)
+    task_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())

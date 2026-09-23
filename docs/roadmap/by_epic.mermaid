@@ -57,7 +57,7 @@ flowchart TD
 
     subgraph G["Epic G — Data Engineering"]
         G21["US-21<br/>Orchestration Airflow"]
-        G22["US-22<br/>Ingestion incrémentale"]
+        G22["US-22<br/>Idempotence, verrou<br/>+ scan incrémental"]
         G23["US-23<br/>Qualité données"]
         G24["US-24<br/>Monitoring"]
         G34["US-34<br/>Purge RGPD"]
@@ -75,6 +75,7 @@ flowchart TD
     classDef partial fill:#f39c12,stroke:#d68910,color:#fff,font-weight:bold
 
     class B25 partial
-    class A01,A02,B03,B04,BEXT1,B06,BEXT2,C08,C09,C10,D35,C11 done
-    class B05,B07,D12,D13,D14,E15,E16,E17,E18,F19,F20,G21,G22,G23,G24,H26,H27,H28,I29,I30,I31,I32,I33 pending
+    class A01,A02,B03,B04,BEXT1,B06,BEXT2,C08,C09,C10,D35,C11,G22 done
+    class B05,B07,D12,D13,D14,E15,E16,E17,E18,F19,F20,G21,G23,G24,H26,H27,H28,I29,I30,I32,I33 pending
+    class I31 next
     class G34 critical
