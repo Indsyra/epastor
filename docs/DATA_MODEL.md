@@ -269,6 +269,30 @@ indiquant clairement qui recontactera la personne et pourquoi.
 
 ---
 
+## 8quater. `pipeline_locks` (verrou anti-concurrence — US-22)
+
+Empêche deux exécutions simultanées d'une même tâche d'ingestion pour un
+même pasteur (incident réel rencontré en pratique : deux lancements de
+`chunk_and_embed_for_pastor` à quelques minutes d'écart ont dupliqué
+8633 chunks avant d'être détectés et corrigés — voir US-22).
+
+| Champ | Type | Notes |
+|---|---|---|
+| id | UUID | PK |
+| pastor_id | UUID | FK → pastors.id |
+| task_name | string | Ex: `"chunk_and_embed"`, `"fetch_transcripts"`, `"discover_videos"` |
+| started_at | timestamp | |
+
+**Contrainte d'unicité sur `(pastor_id, task_name)`** — c'est elle qui
+fait office de verrou : une deuxième exécution ne peut pas insérer sa
+propre ligne tant que la première n'a pas terminé (et supprimé la
+sienne). Une ligne orpheline (tâche interrompue brutalement, sans
+libération propre) devra être nettoyable manuellement pour l'instant —
+un TTL automatique est un raffinement possible plus tard, pas
+implémenté en v1.
+
+---
+
 ## Schéma relationnel simplifié
 
 ```

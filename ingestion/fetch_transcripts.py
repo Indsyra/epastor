@@ -1,4 +1,6 @@
 from pathlib import Path
+from random import random
+from time import time
 
 from db.queries import get_videos_to_transcribe
 from ingestion.transcript_client import get_transcript_segments
@@ -16,16 +18,21 @@ logging.basicConfig(
 
 TRANSCRIPTS_DIR = Path("data/transcripts")
 MAX_CONSECUTIVE_BLOCKED = 3
+MAX_VIDEOS_PER_RUN = 20
 
-def fetch_transcripts_for_pastor(session, pastor_id: str) -> list[dict] | None:
+def fetch_transcripts_for_pastor(session, pastor_id: str) -> None:
     """
-    Fetch and parse the transcript segments for a given YouTube video ID.
+    Fetch and parse the transcript segments for a given pastor's videos.
 
-    Update:
-    - Video transcript status and language
-    - Transcript chunks in the database.
+    Args:
+        session: The SQLAlchemy session.
+        pastor_id (str): The ID of the pastor.
+
+    Returns:
+        None: This function does not return any value.
+
     """
-    videos = get_videos_to_transcribe(session, pastor_id=pastor_id)
+    videos = get_videos_to_transcribe(session, pastor_id=pastor_id)[:MAX_VIDEOS_PER_RUN]
     TRANSCRIPTS_DIR.mkdir(parents=True, exist_ok=True)
 
     consecutive_blocked = 0
@@ -36,8 +43,10 @@ def fetch_transcripts_for_pastor(session, pastor_id: str) -> list[dict] | None:
         if status == "blocked":
             consecutive_blocked += 1
             if consecutive_blocked >= MAX_CONSECUTIVE_BLOCKED:
-                print(f"{MAX_CONSECUTIVE_BLOCKED} consecutive blocked — stopping.")
+                logger.info("%d consecutive blocked — stopping.", MAX_CONSECUTIVE_BLOCKED)
                 break
+            logger.info("Sleeping for a while before retrying...")
+            time.sleep(random.uniform(60,120))
             continue
         else:
             consecutive_blocked = 0
@@ -52,12 +61,18 @@ def fetch_transcripts_for_pastor(session, pastor_id: str) -> list[dict] | None:
         else:
             video.transcript_status = status
         session.add(video)
-    session.commit()
+        session.commit()
+        time.sleep(random.uniform(15,45))
 
 if __name__ == "__main__":
     from sqlalchemy import select
     from db.models import Pastor
+    from db.locks import pipeline_lock, TaskAlreadyRunningError
 
     with SessionLocal() as session:
         pastor = session.scalars(select(Pastor).where(Pastor.display_name == "Mohammed Sanogo")).first()
-        fetch_transcripts_for_pastor(session, pastor_id=pastor.id)
+        try:
+            with pipeline_lock(session, pastor.id, "fetch_transcripts"):
+                fetch_transcripts_for_pastor(session, pastor_id=pastor.id)
+        except TaskAlreadyRunningError as e:
+            logger.warning(str(e))

@@ -482,6 +482,39 @@ inutiles).*
   + reconstruction complète de l'index). La vraie protection contre ce
   cas (verrou de tâche empêchant deux exécutions concurrentes sur un
   même pasteur) reste à implémenter avec cette US — pas encore fait.
+- **Verrou implémenté et validé en conditions réelles** : table
+  `pipeline_locks` avec contrainte d'unicité sur `(pastor_id, task_name)`
+  (voir DATA_MODEL.md §8quater), gestionnaire de contexte
+  `pipeline_lock()` dans `db/locks.py`. Le verrou est pris avec un
+  commit immédiat (pour être visible des autres exécutions), puis libéré
+  dans un `finally` précédé d'un `rollback()`, afin qu'une tâche qui
+  plante en pleine transaction ne laisse pas de verrou orphelin ni ne
+  masque l'erreur d'origine. Test réel : un second lancement simultané
+  est bien refusé, et le verrou est bien libéré à la fin du premier.
+  Limite connue : un processus tué brutalement (fenêtre fermée) ne passe
+  pas par le `finally` et laisse un verrou orphelin, à supprimer à la
+  main pour l'instant (pas de TTL automatique en v1).
+- **Rythme de récupération des transcripts** : pour limiter les blocages
+  YouTube, `fetch_transcripts_for_pastor` traite au plus
+  `MAX_VIDEOS_PER_RUN` vidéos par exécution, marque une pause aléatoire
+  de 15 à 45 s entre deux vidéos (60 à 120 s après un blocage) et
+  valide chaque vidéo séparément, pour qu'une interruption ne fasse pas
+  perdre le travail déjà fait. Les proxys résidentiels ont été écartés
+  (contournement des protections YouTube, incompatible avec un projet
+  fondé sur le consentement des pasteurs).
+- **Scan incrémental implémenté et validé** : si `last_scanned_at` est
+  vide, la découverte fait un scan complet ; sinon, elle ne liste que les
+  `RECENT_SCAN_LIMIT` (50) vidéos les plus récentes de chaque onglet
+  (option `playlistend` de yt-dlp). Les `video_id` connus sont chargés en
+  une seule requête dans un `set`. Test réel : 50 vidéos listées par
+  chaîne au lieu de ~1900, environ 3 s par exécution, 0 vidéo réinsérée.
+- **Sécurité anti-perte** : si aucune des 50 vidéos les plus récentes
+  n'est déjà connue (plus de 50 publications depuis le dernier scan),
+  la chaîne est rescannée entièrement, pour ne pas laisser de vidéos
+  hors de portée. Ce chemin n'a pas encore été déclenché en conditions
+  réelles : à couvrir par un test unitaire.
+- **Repoussé explicitement** : l'« indicateur de changement » (titre
+  modifié, sous-titres corrigés après coup), pas nécessaire en v1.
 
 ### US-23 (P2) — Qualité et validation des données ingérées
 *En tant que système, je veux valider la qualité des données à chaque
