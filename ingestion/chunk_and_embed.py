@@ -2,7 +2,7 @@ import json
 import logging
 from pathlib import Path
 
-from db.queries import get_videos_with_fetched_transcript
+from db.queries import get_chunks_for_video, get_videos_by_chunking_status
 from db.models import TranscriptStatusEnum, Video, TranscriptChunk, ChunkingStatusEnum
 from db.session import SessionLocal
 from ingestion.chunking import chunk_segments
@@ -27,22 +27,22 @@ def get_videos_to_chunk(session, pastor_id: str) -> list[Video]:
     ).all()
 
 def chunk_and_embed_for_pastor(session, pastor_id: str) -> None:
-    videos = get_videos_with_fetched_transcript(session, pastor_id)
+    # Vidéos jamais commencées : il faut tout faire
+    pending_videos = get_videos_by_chunking_status(session, pastor_id, ChunkingStatusEnum.PENDING)
+    # Vidéos interrompues après le commit des chunks, mais avant l'indexation FAISS
+    chunked_videos = get_videos_by_chunking_status(session, pastor_id, ChunkingStatusEnum.CHUNKED)
 
-    for video in videos:
-        chunk_ids_list = []
+    for video in pending_videos:
         transcript_path = TRANSCRIPTS_DIR / f"{video.id}.json"
         if not transcript_path.exists():
-            logger.warning(f"Transcript for video {video.id} not found at {transcript_path}")
+            logger.warning("Transcript introuvable pour %s, ignoré", video.id)
             continue
 
         with open(transcript_path, "r", encoding="utf-8") as f:
             segments = json.load(f)
 
         chunks = chunk_segments(segments)
-        embedded_chunks = embed_texts([chunk["text"] for chunk in chunks])
-
-        for chunk, embedded_chunk in zip(chunks, embedded_chunks):
+        for chunk in chunks:
             transcript_chunk = TranscriptChunk(
                 video_id=video.id,
                 pastor_id=pastor_id,
@@ -52,14 +52,23 @@ def chunk_and_embed_for_pastor(session, pastor_id: str) -> None:
                 end_seconds=chunk["end_seconds"],
             )
             session.add(transcript_chunk)
-            session.flush()  # Ensure the transcript_chunk.id is populated before appending to chunk_ids_list
-            chunk_ids_list.append(transcript_chunk.id)
+
+        video.chunking_status = ChunkingStatusEnum.CHUNKED
+        session.add(video)
+        session.commit()  # les chunks sont maintenant définitivement en base
+        chunked_videos.append(video)  # à indexer juste après, comme les autres
+
+    for video in chunked_videos:
+        existing_chunks = get_chunks_for_video(session, video.id)
+        embedded_chunks = embed_texts([c.text for c in existing_chunks])
+        chunk_ids_list = [c.id for c in existing_chunks]
 
         add_vectors(pastor_id, embedded_chunks, chunk_ids_list)
+
         video.chunking_status = ChunkingStatusEnum.DONE
         session.add(video)
         session.commit()
-        logger.info(f"Finished processing video {video.id}")
+        logger.info("Vidéo %s indexée avec succès", video.id)
     
 if __name__ == "__main__":
     from db.models import Pastor
