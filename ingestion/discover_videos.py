@@ -61,7 +61,7 @@ def discover_and_save_videos(session, pastor_id: str) -> None:
             inserted += 1
             known_video_ids.add(video_id)
         logger.info("Inserted %d new videos for channel_id %s", inserted, channel.id)
-        channel.last_scanned_at = datetime.utcnow()
+        channel.last_scanned_at = datetime.now(timezone.utc)
         session.add(channel)
         logger.info("Updated last_scanned_at for channel_id %s", channel.id)
     session.commit()
