@@ -47,6 +47,7 @@ class SourceTabEnum(str, enum.Enum):
 
 class ChunkingStatusEnum(str, enum.Enum):
     PENDING = "pending"
+    CHUNKED = "chunked"
     DONE = "done"
 
 class Pastor(Base):

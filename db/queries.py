@@ -1,6 +1,6 @@
 from datetime import datetime, timezone, timedelta
 from sqlalchemy import select
-from db.models import Book, Channel, TranscriptChunk, Video
+from db.models import Book, Channel, ChunkingStatusEnum, TranscriptChunk, TranscriptStatusEnum, Video
 import random
 
 def get_channels_for_pastor(session, pastor_id):
@@ -95,3 +95,15 @@ def get_chunk_window(session, video_id: str, window_size: int = 5) -> str:
         selected = chunks[start_index:start_index + window_size]
 
     return " ".join(c.text for c in selected)
+def get_videos_by_chunking_status(session, pastor_id: str, status: ChunkingStatusEnum) -> list[Video]:
+    return session.scalars(
+        select(Video)
+        .where(Video.pastor_id == pastor_id)
+        .where(Video.transcript_status == TranscriptStatusEnum.FETCHED)
+        .where(Video.chunking_status == status)
+    ).all()
+
+def get_chunks_for_video(session, video_id: str) -> list[TranscriptChunk]:
+    return session.scalars(
+        select(TranscriptChunk).where(TranscriptChunk.video_id == video_id)
+    ).all()

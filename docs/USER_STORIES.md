@@ -502,6 +502,37 @@ inutiles).*
   perdre le travail déjà fait. Les proxys résidentiels ont été écartés
   (contournement des protections YouTube, incompatible avec un projet
   fondé sur le consentement des pasteurs).
+- **Incident réel découvert en testant le scan incrémental, et corrigé** :
+  l'écriture dans FAISS (`add_vectors`) et le `commit()` des chunks en
+  base n'étaient pas une seule opération atomique. Si une exécution de
+  `chunk_and_embed_for_pastor` était interrompue entre les deux
+  (concurrence, crash, Ctrl+C), les vecteurs déjà écrits sur disque
+  survivaient, pointant vers des `chunk_id` jamais validés en base
+  (2154 orphelins constatés en pratique). Corrigé en introduisant un
+  troisième état sur `chunking_status` : `chunked` (les lignes
+  `TranscriptChunk` existent et sont commitées, mais pas encore
+  indexées) entre `pending` et `done`. `chunk_and_embed_for_pastor`
+  traite maintenant les vidéos en deux passes — création des chunks
+  avec commit immédiat par vidéo (`pending` → `chunked`), puis
+  indexation FAISS des vidéos `chunked` (→ `done`) — ce qui élimine le
+  risque de recréer des chunks déjà existants après une interruption.
+  **Limite résiduelle, documentée et non corrigée** : une interruption
+  pendant `add_vectors` lui-même (après le passage à `chunked`, pendant
+  l'ajout des vecteurs) peut encore dupliquer des vecteurs au
+  redémarrage, puisque `chunk_ids_list` resterait identique au tour
+  suivant. Une vraie fermeture demanderait que `add_vectors` sache
+  écarter les identifiants déjà présents avant d'ajouter — repoussé.
+- **Leçon sur Alembic** : la migration de cette correction a d'abord
+  échoué silencieusement — Alembic identifie une migration par son
+  numéro de révision, enregistré dans `alembic_version`, pas par le
+  contenu réel du fichier. Une version antérieure et bogguée du
+  fichier, exécutée avant correction, avait fait enregistrer la
+  révision comme appliquée sans que la contrainte n'ait réellement
+  changé. `alembic upgrade head` ne rejouait donc plus rien,
+  silencieusement, même après correction du fichier sur disque. La
+  correction n'a été possible qu'en écrivant une **nouvelle** révision
+  par-dessus, jamais en modifiant une migration déjà marquée comme
+  appliquée.
 - **Scan incrémental implémenté et validé** : si `last_scanned_at` est
   vide, la découverte fait un scan complet ; sinon, elle ne liste que les
   `RECENT_SCAN_LIMIT` (50) vidéos les plus récentes de chaque onglet
