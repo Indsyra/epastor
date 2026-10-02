@@ -906,6 +906,14 @@ portfolio.*
 - **Note de conception** : Streamlit ré-exécute tout le script à chaque
   interaction — attention à ne pas recharger le modèle d'embeddings ni
   rouvrir une session à chaque clic (mise en cache de la ressource)
+- **Limite connue, acceptée pour ce MVP** : `@st.cache_resource` met en
+  cache une seule instance (agent, session SQLAlchemy, liste de
+  pasteurs) **partagée entre tous les utilisateurs** de l'application,
+  pas une par visiteur. Une `Session` SQLAlchemy n'est pas conçue pour
+  un accès concurrent par plusieurs threads — sans conséquence pour un
+  usage solo (démo, test interne), mais à corriger avant tout partage de
+  cette interface à plusieurs personnes en simultané (une session par
+  utilisateur, ou un pool de connexions). Non traité dans cette story.
 
 ### US-38 (P2) — API FastAPI exposant l'agent
 *En tant que développeuse, je veux une API qui expose l'agent de façon

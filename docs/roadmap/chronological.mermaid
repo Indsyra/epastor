@@ -22,7 +22,7 @@ flowchart TD
         US0507["US-05 / US-07<br/>Écrans de suivi"]
         EPICH["Epic H<br/>Synthèse<br/>multi-sources"]
         US31["US-31<br/>Garde-fous<br/>santé mentale"]
-        US37["US-37<br/>Interface Streamlit<br/>(MVP, indépendante)"]
+        US37["US-37<br/>Interface Streamlit<br/>(réponse + sources + livres validés)"]
         EPICI["Epic I (suite)<br/>Mode général,<br/>conversation, relais humain"]
         EPICD["Epic D<br/>Formulaire<br/>opérateur"]
         EPICE["Epic E<br/>Widget +<br/>préférences"]
@@ -42,7 +42,8 @@ flowchart TD
     classDef pending fill:#95a5a6,stroke:#7f8c8d,color:#fff
     classDef critical fill:#e74c3c,stroke:#c0392b,color:#fff,font-weight:bold
     classDef partial fill:#f39c12,stroke:#d68910,color:#fff,font-weight:bold
-    class US01,US02,US03,US04,EXT1,EXT2,US06,US08,US09,US10,US35,US11,US22,US21 done
-    class US0507,EPICH,EPICI,EPICD,EPICE,US31 pending
-    class US37 next
+    class US01,US02,US03,US04,EXT1,EXT2,US06,US08,US09,US10,US35,US11,US22,US21,US37 done
+    class US0507,EPICH,EPICI,EPICD,EPICE pending
+    class US31 next
+    class US37 done
     class EPICG critical
