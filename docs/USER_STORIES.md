@@ -453,6 +453,38 @@ périodiquement sans action manuelle).*
   explicites entre elles → configurer des retries automatiques en cas
   d'échec sur une tâche → programmer une exécution planifiée (ex:
   quotidienne) par pasteur actif via un `schedule_interval`
+- **Implémenté et validé en conditions réelles, avec des choix
+  différents de ceux envisagés ci-dessus** : Apache Airflow 3.3.2, via
+  le `docker-compose.yaml` officiel, dans WSL (Docker Desktop). Une
+  image personnalisée (`Dockerfile` local, `FROM apache/airflow:3.3.2`)
+  ajoute `uv` ; le code ePastor est monté en volume (`/opt/epastor`),
+  pas dupliqué dans l'image — les deux projets restent séparés. Les
+  tâches sont des `BashOperator` (`cd /opt/epastor && uv run python -m
+  ...`), pas des `PythonOperator`/TaskFlow comme envisagé initialement
+  — plus simple, et cohérent avec le choix de garder les deux projets
+  indépendants plutôt que d'installer les dépendances ePastor dans
+  l'image Airflow elle-même. `airflow.sdk` remplace les anciens imports
+  `airflow.decorators`/`airflow.models.dag` dépréciés en Airflow 3 ;
+  `BashOperator` vit maintenant dans `apache-airflow-providers-standard`,
+  inclus par défaut. `schedule="0 3 * * *"` (`schedule_interval` est
+  retiré en Airflow 3), `catchup=False`.
+- **Test réel du DAG à 3 tâches** (`discover_videos → fetch_transcripts
+  → chunk_and_embed`, dépendances via `>>`) : passage de 59 à 73 vidéos
+  `DONE`, cohérence base/FAISS confirmée à chaque étape (22393 chunks).
+  Le blocage YouTube est survenu plus tôt depuis les conteneurs Docker
+  qu'en exécution directe (IP davantage surveillée par YouTube), mais
+  le garde-fou `MAX_CONSECUTIVE_BLOCKED` s'est arrêté proprement comme
+  prévu (code de sortie 0), sans faire échouer la tâche Airflow.
+- **`FERNET_KEY` générée et configurée** (via `.env`, lu automatiquement
+  par `docker-compose.yaml`), pour un chiffrement réel des informations
+  sensibles qu'Airflow pourrait stocker lui-même (connexions, etc.).
+- **Écart non comblé par rapport à la story d'origine** : pas de
+  retries automatiques configurés sur les tâches. Pas bloquant pour
+  l'instant — `fetch_transcripts` et `chunk_and_embed` se terminent
+  proprement même en cas de blocage YouTube (code 0, pas d'échec), et
+  sont idempotentes (US-22) donc un relancement manuel ne duplique
+  rien — mais une vraie automatisation sans surveillance humaine
+  voudrait des `retries`/`retry_delay` explicites sur chaque tâche.
 
 ### US-22 (P1) — Ingestion incrémentale et idempotence
 *En tant que système, je veux ne retraiter que les vidéos réellement
@@ -740,32 +772,57 @@ qu'une suite de questions isolées sans mémoire.*
   la question est jugée trop large pour une recherche ciblée, qui pose
   une question de suivi avant de lancer le retrieval
 
-### US-31 (P1) — Garde-fous pour les sujets sensibles (santé mentale, détresse)
-*En tant que visiteur traversant une difficulté réelle (ex: dépression),
-je veux que la réponse m'oriente aussi vers un accompagnement humain
-réel, professionnel ou communautaire, en plus de l'enseignement
-spirituel, afin de ne jamais traiter un outil IA comme un substitut
-suffisant à un vrai accompagnement.*
+### US-31 (P1) — Garde-fous pour les sujets sensibles, à deux paliers
+*En tant que visiteur traversant une difficulté réelle, je veux que le
+système réagisse différemment selon la gravité de ce que j'exprime : une
+invitation à un accompagnement réel si le sujet est sensible, une
+réponse de sécurité immédiate et prioritaire si j'exprime une détresse
+aiguë — afin de ne jamais traiter un outil IA comme un substitut
+suffisant à un vrai accompagnement, et de ne jamais laisser un vrai
+danger passer inaperçu derrière une réponse spirituelle.*
 
-- **Technos** : instructions de sécurité au niveau du prompt
-  (`agent/prompts.py`), classification légère de la question (mots-clés
-  ou appel LLM dédié) pour détecter les sujets sensibles avant génération
-- **Output** : pour toute question touchant à la santé mentale ou à une
-  détresse exprimée, la réponse inclut systématiquement une invitation
-  claire à un accompagnement professionnel et/ou communautaire réel — en
-  complément du contenu spirituel, jamais à sa place
-- **Process** : classifier chaque question entrante pour détecter un
-  sujet sensible ou des signaux de détresse → si détecté, adapter le
-  prompt de génération pour cette réponse afin d'exiger l'orientation
-  vers un accompagnement réel, en plus du contenu issu des enseignements
-  → ne jamais formuler de conseil à portée clinique (diagnostic,
-  traitement) à partir du contenu des vidéos, même si un pasteur en a
-  parlé dans ce sens dans une vidéo source
+- **Technos** : un nouveau nœud LangGraph, `safety_classification_node`,
+  placé **avant** le retrieval (appel `gpt-4o-mini`, sortie JSON
+  structurée comme pour l'extraction de livres) ; une **arête
+  conditionnelle** (`add_conditional_edges`, premier usage dans ce
+  projet — jusqu'ici uniquement des `add_edge` linéaires) pour bifurquer
+  selon le résultat
+- **Output** : `state["safety_level"]` ∈ `{"normal", "sensitive",
+  "crisis"}`, déterminé avant toute recherche. Pour `"sensitive"`, le
+  pipeline normal continue mais avec un prompt de génération renforcé.
+  Pour `"crisis"`, le graphe bifurque vers un nœud dédié, sans jamais
+  passer par le retrieval ni la génération habituelle
+- **Process** : `safety_classification_node` classe la question entrante
+  sur les trois niveaux, avant tout retrieval → si `"normal"`, chemin
+  inchangé (retrieval → génération → extraction de livres) → si
+  `"sensitive"`, même chemin mais `build_prompt` reçoit une consigne
+  supplémentaire pour toujours inclure une invitation à un
+  accompagnement réel et ne jamais reproduire tel quel un conseil à
+  consonance clinique présent dans une vidéo source → si `"crisis"`, le
+  graphe bifurque directement vers `crisis_response_node` sans passer
+  par `search_chunks` ni la génération habituelle → ce nœud renvoie un
+  texte fixe, chaleureux, non clinique, qui reconnaît ce que la personne
+  vit, invite fortement à contacter un humain réel tout de suite (lien
+  direct vers US-33), donne une ressource d'urgence par défaut
+  (généraliste francophone) et demande le pays pour affiner — sans
+  jamais rendre la réponse dépendante de cette précision, faute de
+  mémoire conversationnelle aujourd'hui (dépendance vers US-30) → dans
+  tous les cas, `state["books"]` reste vide pour une réponse `"crisis"`,
+  aucune citation ni lien vidéo pour ce type de réponse
 - **Note de conception** : ce garde-fou est non négociable et prioritaire
   sur la fidélité au contenu source — si une vidéo source contient un
   conseil qui ressemblerait à un avis clinique, la synthèse ne le
-  reproduit pas tel quel, elle recentre sur l'encouragement spirituel et
-  l'orientation vers un accompagnement réel
+  reproduit pas tel quel
+- **Vie privée** : le contenu d'un message classé `"sensitive"` ou
+  `"crisis"` n'est **jamais persisté** nulle part au-delà du cycle de la
+  requête elle-même — pas de table de log, pas de trace en base. Cohérent
+  avec la prudence déjà actée ailleurs dans le projet sur les données
+  sensibles (§8bis, §8ter de DATA_MODEL.md)
+- **Hors périmètre explicite pour cette story** : la vraie localisation
+  des ressources par pays (US-30 prérequis), et toute forme de
+  signalement à l'équipe pastorale pour une détresse aiguë détectée —
+  volontairement distinct d'US-32 (signalement de prière, opt-in,
+  jamais automatique)
 
 ### US-32 (P1) — Signalement de prière (opt-in, anonyme par défaut)
 *En tant que visiteur traversant une difficulté, je veux pouvoir demander,
@@ -823,6 +880,103 @@ réponse du chatbot.*
   ou de besoin réel, ce qui demande le niveau de consentement le plus
   explicite du produit. Ne jamais fusionner ce formulaire avec celui de
   US-32 ni pré-remplir l'un à partir de l'autre.
+
+---
+
+## Epic J — Interface de démonstration (interne, distincte du produit public)
+
+### US-37 (P1) — Interface Streamlit pour interagir avec l'agent (MVP)
+*En tant que développeuse, je veux une interface web simple pour poser
+des questions à l'agent sans passer par des scripts Python, afin de
+tester et démontrer le pipeline facilement — y compris pour un usage
+portfolio.*
+
+- **Technos** : Streamlit, réutilise directement `agent/graph.py`
+  (`build_agent_graph`) — aucune couche API intermédiaire à ce stade
+- **Output** : une page simple — sélection du pasteur (menu déroulant,
+  utile dès aujourd'hui même avec un seul pasteur, prépare le
+  multi-tenant), champ de question, affichage de la réponse, des
+  sources et des livres trouvés
+- **Process** : `build_agent_graph(session)` appelé directement depuis
+  le script Streamlit → formulaire (champ texte pour la question, menu
+  déroulant pour le pasteur) → au clic, `agent.invoke(...)` → afficher
+  la réponse, les sources en liens cliquables, les livres trouvés →
+  indicateur de chargement pendant l'appel, qui peut prendre plusieurs
+  secondes
+- **Note de conception** : Streamlit ré-exécute tout le script à chaque
+  interaction — attention à ne pas recharger le modèle d'embeddings ni
+  rouvrir une session à chaque clic (mise en cache de la ressource)
+
+### US-38 (P2) — API FastAPI exposant l'agent
+*En tant que développeuse, je veux une API qui expose l'agent de façon
+structurée, afin que des interfaces plus riches (portail opérateur,
+futur frontend) puissent l'appeler sans jamais dupliquer la logique de
+`agent/graph.py`.*
+
+- **Technos** : FastAPI (API backend, async) — choisi après comparaison
+  chiffrée avec Django début octobre 2026 (FastAPI : adoption 38 % vs
+  35 % pour Django selon l'enquête State of Python 2025, et bien mieux
+  représenté dans les offres IA/ML spécifiquement)
+- **Output** : une API FastAPI exposant l'agent (endpoint du type `POST
+  /ask`, question + `pastor_id` → réponse structurée JSON avec
+  `answer`/`sources`/`books`)
+- **Process** : envelopper `build_agent_graph` dans un service FastAPI →
+  schéma de requête/réponse en Pydantic → endpoint unique pour
+  commencer, extensible → CORS configuré pour les consommateurs futurs
+  (portail Backstage, US-39/40)
+- **Note de conception** : distincte du widget public (US-15, Epic E) —
+  un service interne, pas le produit final exposé aux pasteurs ou à
+  leurs visiteurs.
+
+### US-39 (P2) — Portail opérateur Backstage : catalogue des pasteurs
+*En tant qu'opératrice de la plateforme, je veux un portail Backstage
+qui catalogue chaque pasteur comme une entité de service, afin d'avoir
+une vue centralisée de toutes les instances ePastor plutôt que de les
+gérer à la main en base — et de démontrer une compétence Platform
+Engineering reconnue (Backstage est l'outil le plus cité dans les
+offres de ce domaine en 2026).*
+
+- **Technos** : Backstage (Node.js/TypeScript — seule partie du projet
+  dans cette stack, tout le reste est Python), modèle de catalogue natif
+  de Backstage (entités `Component`/`System`), consomme l'API FastAPI de
+  US-38 — pas une duplication de la logique métier
+- **Output** : une instance Backstage locale, avec chaque pasteur
+  ePastor représenté comme une entité catalogue (nom, chaînes rattachées,
+  nombre de livres, statut), visible et parcourable dans l'UI standard
+  de Backstage
+- **Process** : scaffolder une app Backstage (`@backstage/create-app`) →
+  écrire un "catalog provider" personnalisé qui lit la table `pastors`
+  (via l'API FastAPI, pas un accès direct à la base) et génère les
+  entités catalogue correspondantes → visualiser dans le catalogue
+  Backstage standard, sans plugin frontend custom à ce stade
+- **Note de conception** : volontairement limitée à la lecture/
+  visualisation dans cette story — l'action (déclencher un pipeline
+  depuis Backstage) est repoussée à US-40, pour ne pas mélanger
+  "afficher le catalogue" et "écrire un vrai plugin Backstage" dans la
+  même story
+
+### US-40 (P2) — Plugin Backstage : santé du pipeline + déclenchement
+*En tant qu'opératrice, je veux voir l'état d'ingestion de chaque
+pasteur et pouvoir déclencher le pipeline directement depuis Backstage,
+afin de ne plus avoir à ouvrir l'UI Airflow séparément pour superviser
+l'ingestion.*
+
+- **Technos** : un plugin frontend Backstage personnalisé (React,
+  TypeScript), qui appelle l'API REST d'Airflow (déjà exposée par
+  `airflow-apiserver`, confirmée fonctionnelle lors de l'installation
+  US-21) pour lire l'état des exécutions du DAG et en déclencher une
+  nouvelle
+- **Output** : un onglet sur la page de chaque entité pasteur dans
+  Backstage, montrant les dernières exécutions du DAG
+  `epastor_ingestion` (succès/échec, durée), avec un bouton pour en
+  déclencher une nouvelle
+- **Process** : authentifier les appels du plugin vers l'API Airflow →
+  composant frontend affichant l'historique des exécutions → bouton
+  d'action appelant l'endpoint de déclenchement d'Airflow → affichage de
+  l'état en cours pendant l'exécution
+- **Note de conception** : dépend d'US-39 (le catalogue doit exister
+  avant d'y accrocher un onglet) et d'US-21 (déjà fait — l'API Airflow
+  tourne déjà, testée dans cette session)
 
 ---
 

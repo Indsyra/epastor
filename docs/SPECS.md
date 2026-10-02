@@ -2,7 +2,16 @@
 
 ## 1. Vision
 
-Une plateforme à deux faces :
+Le but central : aider une personne à trouver des réponses concrètes à
+des **questions de vie pratique** (ex: comment sortir de la dépression,
+comment prier, comment prospérer selon la Bible) en s'appuyant sur des
+enseignements réels de pasteurs. Un enseignement mêle naturellement
+plusieurs formes de contenu — l'explication du pasteur, un témoignage
+vécu, une référence biblique citée — traitées ensemble comme des exemples
+concrets venant appuyer la réponse, sans classification formelle entre
+elles.
+
+Cette vision se déploie via une plateforme à deux faces :
 
 - **Côté opérateur** : tout pasteur/serviteur/église peut créer une instance
   configurée sur son propre contenu YouTube (et plus tard livres), via un
@@ -70,7 +79,42 @@ Le visiteur arrive sur l'app ePastor elle-même. Dans ce cas :
   avec une **priorité donnée aux préférés** (ex: retrieval pondéré, ou sources
   préférées citées en premier)
 
-### Opérateur (commun aux deux parcours)
+### 5c. Mode général — sans sélection de pasteur
+Un visiteur peut aussi poser une question directement, sans choisir de
+pasteur au préalable — pour des questions de fond qui ne dépendent pas
+d'un enseignant en particulier (ex: "comment sortir de la dépression ?",
+"comment prier ?", "quelles clés la Bible donne pour prospérer ?").
+- La recherche porte sur **l'ensemble des pasteurs actifs** de la
+  plateforme (`status=active`), pas un sous-ensemble choisi
+- **Règle stricte d'attribution** : quand la réponse s'appuie sur
+  plusieurs pasteurs, chaque point doit rester attribué nommément à son
+  pasteur ("Selon le pasteur X... tandis que le pasteur Y souligne...").
+  Le système ne doit **jamais fusionner** des positions de pasteurs
+  différents en une voix générique unique, et doit signaler une
+  divergence de point de vue plutôt que de la lisser — certains sujets
+  (ex: théologie de la prospérité) divisent réellement les courants
+  évangéliques, et présenter une position comme consensus serait
+  trompeur.
+- L'échange peut être **conversationnel** (questions de suivi dans la
+  même session), pas uniquement question unique → réponse unique.
+- **Sujets sensibles (santé mentale, détresse) — deux paliers distincts**,
+  détaillés dans US-31 :
+  - **Sujet sensible** (ex: "comment sortir de la dépression ?") : touche
+    à une réalité clinique, pas seulement spirituelle. La réponse continue
+    normalement (recherche + génération), mais doit toujours encourager un
+    accompagnement professionnel et communautaire réel en complément de
+    l'enseignement spirituel — jamais le présenter comme suffisant en soi.
+  - **Détresse aiguë** (signal explicite de danger immédiat, idées
+    suicidaires) : interrompt le chemin normal **avant la recherche**.
+    Pas de réponse construite depuis le corpus pour ce message — une
+    réponse de sécurité directe, chaleureuse, qui priorise une mise en
+    relation humaine réelle et immédiate (voir US-33) plutôt que tout
+    contenu spirituel, aussi pertinent soit-il.
+  - Dans les deux cas : jamais de signalement silencieux à un tiers,
+    jamais de diagnostic ni de conseil à portée clinique généré par le
+    système, même si une vidéo source en contenait un.
+
+### Opérateur (commun aux trois parcours)
 1. Crée un compte / une instance via formulaire
 2. Renseigne : son nom, une ou plusieurs chaînes YouTube, mots-clés si besoin
    de filtrage par intervenant
@@ -80,6 +124,8 @@ Le visiteur arrive sur l'app ePastor elle-même. Dans ce cas :
    - un lien/widget d'intégration pour son propre site (5a)
    - une visibilité automatique dans l'app générale (5b), sujette à
      recommandation une fois qu'il y a assez de visiteurs pour ça
+   - une éligibilité automatique au mode général (5c), dès que son statut
+     est `active` — pas d'action supplémentaire de sa part
 
 ### Le problème du "cold start" (à garder en tête, pas à résoudre maintenant)
 La recommandation "pasteurs associés" a besoin de données de visiteurs
@@ -98,6 +144,19 @@ pas encore assez de signal. À traiter en v2 — voir section 7.
   pasteur) — la structure de données (4bis) est prévue dès la v1, mais le
   calcul algorithmique est repoussé à une v2, quand il y aura plusieurs
   pasteurs et assez de trafic pour que ça ait un sens
+- **Profil de style par pasteur (imitation du ton/phrasé via un LLM)** —
+  écarté, pas seulement repoussé. Risques identifiés : attribution
+  trompeuse de parole (une réponse *sonnant* comme le pasteur sur un
+  sujet qu'il n'a jamais traité ainsi), nécessite un consentement
+  explicite distinct du simple opt-in d'indexation, comportement instable
+  sur les sujets théologiques disputés, coût de développement disproportionné
+  par rapport à l'objectif de fiabilité (vs style/engagement).
+  **Version retenue à la place ("light")** : citer plus généreusement les
+  formulations exactes du pasteur dans les réponses, dans les limites de
+  citation déjà en place (voir contraintes de citation dans
+  `agent/prompts.py`), plutôt que de systématiquement tout paraphraser.
+  Ça apporte une partie de la "couleur" du pasteur sans risque d'invention
+  de style ni de fausse attribution.
 
 ## 7. Questions encore ouvertes
 
