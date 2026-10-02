@@ -41,8 +41,12 @@ def format_sources(chunks: list[dict]) -> str:
     Returns:
         str: The formatted sources videos urls.
     """
+    lines = [
+        f"- [{i}] {chunk['video_title']} (at {int(chunk['start_seconds'] // 60)}:{int(chunk['start_seconds'] % 60):02d}) - {chunk['video_url']}&t={int(chunk['start_seconds'])}s"
+        for i, chunk in enumerate(chunks, start=1)
+    ]
 
-    return "Sources:\n" + "\n".join([f"[{i}] {chunk['video_title']} (at {int(chunk['start_seconds'] // 60)}:{int(chunk['start_seconds'] % 60):02d}) - {chunk['video_url']}&t={int(chunk['start_seconds'])}s" for i, chunk in enumerate(chunks, start=1)])
+    return "**Sources :**\n\n" + "\n\n".join(lines)
 
 def build_book_extraction_prompt(answer: str) -> list[dict]:
     """
