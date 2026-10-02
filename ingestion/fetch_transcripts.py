@@ -1,6 +1,6 @@
 from pathlib import Path
-from random import random
-from time import time
+import random
+from time import sleep
 
 from db.queries import get_videos_to_transcribe
 from ingestion.transcript_client import get_transcript_segments
@@ -46,7 +46,7 @@ def fetch_transcripts_for_pastor(session, pastor_id: str) -> None:
                 logger.info("%d consecutive blocked — stopping.", MAX_CONSECUTIVE_BLOCKED)
                 break
             logger.info("Sleeping for a while before retrying...")
-            time.sleep(random.uniform(60,120))
+            sleep(random.uniform(60,120))
             continue
         else:
             consecutive_blocked = 0
@@ -62,7 +62,7 @@ def fetch_transcripts_for_pastor(session, pastor_id: str) -> None:
             video.transcript_status = status
         session.add(video)
         session.commit()
-        time.sleep(random.uniform(15,45))
+        sleep(random.uniform(15,45))
 
 if __name__ == "__main__":
     from sqlalchemy import select

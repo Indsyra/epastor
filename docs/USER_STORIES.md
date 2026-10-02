@@ -453,6 +453,38 @@ périodiquement sans action manuelle).*
   explicites entre elles → configurer des retries automatiques en cas
   d'échec sur une tâche → programmer une exécution planifiée (ex:
   quotidienne) par pasteur actif via un `schedule_interval`
+- **Implémenté et validé en conditions réelles, avec des choix
+  différents de ceux envisagés ci-dessus** : Apache Airflow 3.3.2, via
+  le `docker-compose.yaml` officiel, dans WSL (Docker Desktop). Une
+  image personnalisée (`Dockerfile` local, `FROM apache/airflow:3.3.2`)
+  ajoute `uv` ; le code ePastor est monté en volume (`/opt/epastor`),
+  pas dupliqué dans l'image — les deux projets restent séparés. Les
+  tâches sont des `BashOperator` (`cd /opt/epastor && uv run python -m
+  ...`), pas des `PythonOperator`/TaskFlow comme envisagé initialement
+  — plus simple, et cohérent avec le choix de garder les deux projets
+  indépendants plutôt que d'installer les dépendances ePastor dans
+  l'image Airflow elle-même. `airflow.sdk` remplace les anciens imports
+  `airflow.decorators`/`airflow.models.dag` dépréciés en Airflow 3 ;
+  `BashOperator` vit maintenant dans `apache-airflow-providers-standard`,
+  inclus par défaut. `schedule="0 3 * * *"` (`schedule_interval` est
+  retiré en Airflow 3), `catchup=False`.
+- **Test réel du DAG à 3 tâches** (`discover_videos → fetch_transcripts
+  → chunk_and_embed`, dépendances via `>>`) : passage de 59 à 73 vidéos
+  `DONE`, cohérence base/FAISS confirmée à chaque étape (22393 chunks).
+  Le blocage YouTube est survenu plus tôt depuis les conteneurs Docker
+  qu'en exécution directe (IP davantage surveillée par YouTube), mais
+  le garde-fou `MAX_CONSECUTIVE_BLOCKED` s'est arrêté proprement comme
+  prévu (code de sortie 0), sans faire échouer la tâche Airflow.
+- **`FERNET_KEY` générée et configurée** (via `.env`, lu automatiquement
+  par `docker-compose.yaml`), pour un chiffrement réel des informations
+  sensibles qu'Airflow pourrait stocker lui-même (connexions, etc.).
+- **Écart non comblé par rapport à la story d'origine** : pas de
+  retries automatiques configurés sur les tâches. Pas bloquant pour
+  l'instant — `fetch_transcripts` et `chunk_and_embed` se terminent
+  proprement même en cas de blocage YouTube (code 0, pas d'échec), et
+  sont idempotentes (US-22) donc un relancement manuel ne duplique
+  rien — mais une vraie automatisation sans surveillance humaine
+  voudrait des `retries`/`retry_delay` explicites sur chaque tâche.
 
 ### US-22 (P1) — Ingestion incrémentale et idempotence
 *En tant que système, je veux ne retraiter que les vidéos réellement
